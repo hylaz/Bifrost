@@ -82,7 +82,7 @@ func main() {
 		}
 	}()
 
-	flag.StringVar(&config.BifrostConfigFile, "config", "", "-config")
+	flag.StringVar(&config.BifrostConfigFile, "config", "./etc/bifrost.ini", "-config")
 	flag.StringVar(&BifrostPid, "pid", "", "-pid")
 	flag.BoolVar(&BifrostDaemon, "d", false, "-d")
 	flag.StringVar(&BifrostDataDir, "data_dir", "", "-data_dir")
@@ -133,19 +133,16 @@ func main() {
 	}
 	config.InitParam()
 
-	if !BifrostDaemon {
-		printLogo()
-	} else {
-		printLogo()
-		initLog()
-		fmt.Printf("Please press the `Enter`\r")
-	}
+	printLogo()
+	initLog()
+	fmt.Printf("Please press the `Enter`\r")
 
 	os.MkdirAll(config.DataDir, 0700)
 
 	WritePid()
 
 	plugin.DoDynamicPlugin()
+	//初始化存储
 	server.InitStorage()
 
 	log.Println("Server started, Bifrost version", config.VERSION)
@@ -157,10 +154,10 @@ func main() {
 }
 
 func initLog() {
-	os.MkdirAll(config.BifrostLogDir, 0700)
+	os.MkdirAll(config.BifrostLogDir, 0755)
 	t := time.Now().Format("2006-01-02")
 	LogFileName := config.BifrostLogDir + "/Bifrost_" + t + ".log"
-	f, err := os.OpenFile(LogFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0700) //打开文件
+	f, err := os.OpenFile(LogFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0755) //打开文件
 	if err != nil {
 		log.Println("log init error:", err)
 	}

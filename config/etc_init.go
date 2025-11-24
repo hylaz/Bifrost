@@ -1,21 +1,3 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-/*
-初始化配置
-*/
 package config
 
 import (
@@ -29,14 +11,15 @@ import (
 func LoadConf(BifrostConfigFile string) {
 	if BifrostConfigFile == "" {
 		BifrostConfigFile = BifrostDir + "/etc/Bifrost.ini"
-		//log.Println("BifrostConfigFile:",BifrostConfigFile)
 	} else {
-		if runtime.GOOS != "windows" {
-			if BifrostConfigFile[0:1] != "/" {
-				BifrostConfigFile = BifrostDir + BifrostConfigFile
-			}
-		}
+
+		//if runtime.GOOS != "windows" {
+		//	if BifrostConfigFile[0:1] != "/" {
+		//		BifrostConfigFile = BifrostDir + BifrostConfigFile
+		//	}
+		//}
 	}
+
 	DoLoadConf(BifrostConfigFile)
 }
 
@@ -73,16 +56,7 @@ func InitParam() {
 	DelConfig("Bifrostd", "pid")
 
 	BifrostLogDir = GetConfigVal("Bifrostd", "log_dir")
-	if BifrostLogDir == "" {
-		log.Println("no config [ Bifrostd log_dir ] ")
-		BifrostLogDir = BifrostDir + "/logs"
-		log.Println("log_dir default:", BifrostLogDir)
-	}
-	if runtime.GOOS != "windows" {
-		if BifrostLogDir[0:1] != "/" {
-			BifrostLogDir = BifrostDir + BifrostLogDir
-		}
-	}
+	log.Println("log_dir:", BifrostLogDir)
 	DelConfig("Bifrostd", "log_dir")
 
 	BifrostAdminTemplateDir = GetConfigVal("Bifrostd", "admin_template_dir")

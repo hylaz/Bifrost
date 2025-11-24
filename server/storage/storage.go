@@ -27,10 +27,6 @@ func InitStorage() {
 	switch metaStorageType {
 	case "redis":
 		path = config.GetConfigVal("Bifrostd", "meta_storage_path")
-		if config.GetConfigVal("Bifrostd", "cluster_name") == "" {
-			log.Println("config cluster_name is empty!")
-			os.Exit(1)
-		}
 		break
 	default:
 		metaStorageType = "leveldb"
