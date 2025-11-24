@@ -38,8 +38,7 @@ func InitStorage() {
 		log.Println(xdbErr)
 		os.Exit(1)
 	}
-	xdbClient.SetPrefix(config.GetConfigVal("Bifrostd", "cluster_name"))
-
+	xdbClient.SetPrefix(config.GetConfigVal("Bifrostd", "meta_storage_key_prefix"))
 	dbSourceKey = []byte("dbSourceData")
 }
 

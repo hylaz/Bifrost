@@ -135,12 +135,9 @@ func main() {
 
 	printLogo()
 	initLog()
-	fmt.Printf("Please press the `Enter`\r")
 
-	os.MkdirAll(config.DataDir, 0700)
-
+	os.MkdirAll(config.DataDir, 0755)
 	WritePid()
-
 	plugin.DoDynamicPlugin()
 	//初始化存储
 	server.InitStorage()
