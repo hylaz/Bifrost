@@ -5,8 +5,11 @@ import (
 	"fmt"
 	manager "github.com/brokercap/Bifrost/admin"
 	"github.com/brokercap/Bifrost/config"
+	_ "github.com/brokercap/Bifrost/input"
 	"github.com/brokercap/Bifrost/plugin"
+	_ "github.com/brokercap/Bifrost/plugin/load"
 	"github.com/brokercap/Bifrost/server"
+	"github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"log"
@@ -22,8 +25,6 @@ import (
 	"syscall"
 	"time"
 )
-import _ "github.com/brokercap/Bifrost/plugin/load"
-import _ "github.com/brokercap/Bifrost/input"
 
 var l sync.Mutex
 var saveDbInfoStatus bool
@@ -38,21 +39,6 @@ ___         ___                   _
 纪念2022.08.28认识Monty并合影
 
                                        `
-
-func printLogo() {
-	var IpAndPort2 string
-	//IpAndPort2 = strings.Replace(IpAndPort,"0.0.0.0","127.0.0.1",-1)
-	if config.TLS {
-		IpAndPort2 = "https://" + config.Listen
-	} else {
-		IpAndPort2 = "http://" + config.Listen
-	}
-	logo = strings.Replace(logo, "{$version}", config.VERSION, -1)
-	logo = strings.Replace(logo, "{$Port}", IpAndPort2, -1)
-	logo = strings.Replace(logo, "{$Pid}", fmt.Sprint(os.Getpid()), -1)
-	logo = strings.Replace(logo, "{$system}", fmt.Sprint(runtime.GOARCH), -1)
-	fmt.Println(logo)
-}
 
 var BifrostDaemon bool
 
@@ -132,20 +118,18 @@ func main() {
 		config.SetConfigVal("Bifrostd", "pid", BifrostPid)
 	}
 	config.InitParam()
-
 	printLogo()
 	initLog()
 
 	os.MkdirAll(config.DataDir, 0755)
+
 	WritePid()
 	plugin.DoDynamicPlugin()
 	//初始化存储
 	server.InitStorage()
 
-	log.Println("Server started, Bifrost version", config.VERSION)
-
+	logrus.Println("Server started, Bifrost version", config.VERSION)
 	doRecovery()
-
 	go manager.Start()
 	ListenSignal()
 }
@@ -153,13 +137,15 @@ func main() {
 func initLog() {
 	os.MkdirAll(config.BifrostLogDir, 0755)
 	t := time.Now().Format("2006-01-02")
-	LogFileName := config.BifrostLogDir + "/Bifrost_" + t + ".log"
-	f, err := os.OpenFile(LogFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0755) //打开文件
+	LogFileName := config.BifrostLogDir + "/bifrost_" + t + ".log"
+	logrus.SetFormatter(&logrus.JSONFormatter{
+		TimestampFormat: "2006-01-02 15:04:05", //时间格式
+	})
+	file, err := os.OpenFile(LogFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
-		log.Println("log init error:", err)
+		return
 	}
-	log.SetOutput(f)
-	fmt.Println("log input to", LogFileName)
+	logrus.SetOutput(io.MultiWriter(os.Stdout, file))
 }
 
 func WritePid() {
@@ -252,4 +238,17 @@ func ListenSignal() {
 		}
 		os.Exit(0)
 	}
+}
+func printLogo() {
+	var IpAndPort2 string
+	if config.TLS {
+		IpAndPort2 = "https://" + config.Listen
+	} else {
+		IpAndPort2 = "http://" + config.Listen
+	}
+	logo = strings.Replace(logo, "{$version}", config.VERSION, -1)
+	logo = strings.Replace(logo, "{$Port}", IpAndPort2, -1)
+	logo = strings.Replace(logo, "{$Pid}", fmt.Sprint(os.Getpid()), -1)
+	logo = strings.Replace(logo, "{$system}", fmt.Sprint(runtime.GOARCH), -1)
+	fmt.Println(logo)
 }

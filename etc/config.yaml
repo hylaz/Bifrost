@@ -1,0 +1,32 @@
+Bifrostd:
+  port: 8080
+  meta_storage_type: "redis"
+  meta_storage_path: "127.0.0.1:6379"
+  meta_storage_key_prefix: "bifrost"
+  timeout: "30s"
+  file_queue_usable: false
+  cors:
+    allowed_origins:
+      - "http://localhost:3000"
+      - "https://example.com"
+    allowed_methods:
+      - "GET"
+      - "POST"
+user:
+  - name: "Bifrost"
+    password: "Bifrost123"
+  - name: "BifrostMonitor"
+    password: "Bifrost123"
+
+groups:
+  - name: "Bifrost"
+    password: "administrator"
+  - name: "BifrostMonitor"
+    password: "monitor"
+
+
+redis:
+  enabled: true
+  address: "localhost:6379"
+  password: ""
+  db: 0

@@ -12,7 +12,7 @@ import (
 	"github.com/brokercap/Bifrost/server/storage"
 )
 
-const USER_PREFIX string = "bifrost_UserList_"
+const USER_PREFIX string = "bifrost:userList:"
 
 type UserGroupType string
 
@@ -38,16 +38,10 @@ func getUserGroup(groupName string) string {
 
 func InitUser() {
 	userList := storage.GetListByPrefix([]byte(USER_PREFIX))
-	//假如 userList 为空的情况下,则需要将 etc 配置文件中的用户名和密码导入到存储中
 	if len(userList) != 0 {
 		return
 	}
 	func() {
-		// 假如是go 1.11的话 这里需要异步并且并定时5秒
-		// 因为如果不这样的话，在删除了leveldb存储目录的情况下，再启动 GetListByPrefix 的时候，是没有数据的，这样就会 Put数据进去，但是leveldb 这里过一会会把老数据加载进来，覆盖这些数据
-		// 可能是因为 leveldb 包里用了go 里的某个特性,go 1.11 中还存在bug
-		// 所以这里我们并不异步,要求 go1.12+ 版本编译
-		// time.Sleep( time.Duration(5) * time.Second)
 		for Name, Password := range config.GetConf("user") {
 			UserGroup := getUserGroup(config.GetConfigVal("groups", Name))
 			User := UserInfo{

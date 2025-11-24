@@ -3,9 +3,6 @@ package xdb
 import (
 	"encoding/json"
 	"github.com/brokercap/Bifrost/xdb/driver"
-)
-
-import (
 	_ "github.com/brokercap/Bifrost/xdb/leveldb"
 	_ "github.com/brokercap/Bifrost/xdb/redis"
 )
@@ -34,7 +31,7 @@ func (This *Client) SetPrefix(prefix string) *Client {
 }
 
 func (This *Client) GetKeyVal(table, key string, data interface{}) ([]byte, error) {
-	myKey := []byte(This.prefix + "-" + table + "-" + key)
+	myKey := []byte(This.prefix + ":" + table + ":" + key)
 	s, err := This.client.GetKeyVal(myKey)
 	if err != nil {
 		return nil, err
@@ -47,7 +44,7 @@ func (This *Client) GetKeyVal(table, key string, data interface{}) ([]byte, erro
 }
 
 func (This *Client) PutKeyVal(table, key string, data interface{}) error {
-	myKey := []byte(This.prefix + "-" + table + "-" + key)
+	myKey := []byte(This.prefix + ":" + table + ":" + key)
 	val, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -57,24 +54,24 @@ func (This *Client) PutKeyVal(table, key string, data interface{}) error {
 }
 
 func (This *Client) GetKeyValBytes(table, key string) ([]byte, error) {
-	myKey := []byte(This.prefix + "-" + table + "-" + key)
+	myKey := []byte(This.prefix + ":" + table + ":" + key)
 	s, err := This.client.GetKeyVal(myKey)
 	return s, err
 }
 
 func (This *Client) PutKeyValBytes(table, key string, val []byte) error {
-	myKey := []byte(This.prefix + "-" + table + "-" + key)
+	myKey := []byte(This.prefix + ":" + table + ":" + key)
 	err := This.client.PutKeyVal(myKey, val)
 	return err
 }
 
 func (This *Client) DelKeyVal(table, key string) error {
-	myKey := []byte(This.prefix + "-" + table + "-" + key)
+	myKey := []byte(This.prefix + ":" + table + ":" + key)
 	return This.client.DelKeyVal(myKey)
 }
 
 func (This *Client) GetListByKeyPrefix(table, key string, data interface{}) ([]driver.ListValue, error) {
-	prefix := This.prefix + "-" + table + "-"
+	prefix := This.prefix + ":" + table + ":"
 	prefixLen := len(prefix)
 	myKey := []byte(prefix + key)
 	s, err := This.client.GetListByKeyPrefix(myKey)

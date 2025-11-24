@@ -1,25 +1,26 @@
 package config
 
 import (
+	"fmt"
+	"github.com/spf13/viper"
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 )
 
-func LoadConf(BifrostConfigFile string) {
-	if BifrostConfigFile == "" {
-		BifrostConfigFile = BifrostDir + "/etc/Bifrost.ini"
+func LoadConf(configFile string) {
+	if configFile == "" {
+		configFile = BifrostDir + "/etc/Bifrost.ini"
 	} else {
 
-		//if runtime.GOOS != "windows" {
-		//	if BifrostConfigFile[0:1] != "/" {
-		//		BifrostConfigFile = BifrostDir + BifrostConfigFile
-		//	}
-		//}
 	}
-
+	viper.SetConfigFile("./etc/config.yaml")
+	viper.SetConfigType("yaml")
+	if err := viper.ReadInConfig(); err != nil {
+		panic(err)
+	}
+	fmt.Println("Using config file:", viper.GetString("database.host"))
 	DoLoadConf(BifrostConfigFile)
 }
 
@@ -35,50 +36,18 @@ func InitParam() {
 
 	// 数据存储目录
 	DataDir = GetConfigVal("Bifrostd", "data_dir")
-
-	if DataDir == "" {
-		DataDir = BifrostDir + "/data"
-	}
-
-	if runtime.GOOS != "windows" {
-		if DataDir[0:1] != "/" {
-			DataDir = BifrostDir + DataDir
-		}
-	}
 	DelConfig("Bifrostd", "data_dir")
-
-	if runtime.GOOS != "windows" {
-		BifrostPidFile = GetConfigVal("Bifrostd", "pid")
-		if BifrostPidFile == "" {
-			BifrostPidFile = DataDir + "/Bifrost.pid"
-		}
-	}
+	BifrostPidFile = GetConfigVal("Bifrostd", "pid")
 	DelConfig("Bifrostd", "pid")
 
 	BifrostLogDir = GetConfigVal("Bifrostd", "log_dir")
-	log.Println("log_dir:", BifrostLogDir)
+	fmt.Println("log_dir:", BifrostLogDir)
 	DelConfig("Bifrostd", "log_dir")
 
 	BifrostAdminTemplateDir = GetConfigVal("Bifrostd", "admin_template_dir")
-	if BifrostAdminTemplateDir == "" {
-		BifrostAdminTemplateDir = BifrostDir + "/admin/view"
-	}
-	if runtime.GOOS != "windows" {
-		if BifrostAdminTemplateDir[0:1] != "/" {
-			BifrostAdminTemplateDir = BifrostDir + BifrostAdminTemplateDir
-		}
-	}
 	DelConfig("Bifrostd", "admin_template_dir")
 
 	BifrostPluginTemplateDir = GetConfigVal("Bifrostd", "plugin_template_dir")
-	if BifrostPluginTemplateDir == "" {
-		BifrostPluginTemplateDir = BifrostDir
-	}
-	if runtime.GOOS != "windows" {
-		if BifrostPluginTemplateDir[0:1] != "/" {
-			BifrostPluginTemplateDir = BifrostDir + BifrostPluginTemplateDir
-		}
-	}
 	DelConfig("Bifrostd", "plugin_template_dir")
 
 	var tmp string
