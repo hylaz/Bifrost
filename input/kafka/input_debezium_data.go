@@ -17,7 +17,7 @@ limitations under the License.
 package kafka
 
 import (
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 	outputDriver "github.com/brokercap/Bifrost/plugin/driver"

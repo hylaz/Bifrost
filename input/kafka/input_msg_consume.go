@@ -19,7 +19,7 @@ package kafka
 import (
 	"context"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"hash/crc32"
 	"log"
 	"sync"

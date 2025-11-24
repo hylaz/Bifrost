@@ -1,19 +1,3 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package mongo
 
 import (
@@ -192,9 +176,10 @@ func (c *MongoInput) GtmAfter(client *mongo.Client, options *gtm.Options) (primi
 func (c *MongoInput) OpFitler(op *gtm.Op) bool {
 	// 这里实际是在mongo gtm中回调执行的
 	// 至于需要不需要再在当前Input中返回给server端，后面代码中对于 applyOps 还会继续判断处理
-	if op.IsTransactionApplyOps() {
-		return true
-	}
+	//if op.IsTransactionApplyOps() {
+	//	return true
+	//}
+
 	var schemaName = op.GetDatabase()
 	var table string
 	switch op.Operation {
@@ -238,19 +223,22 @@ func (c *MongoInput) ConsumeMongoOpLog(ctx *gtm.OpCtx) {
 		case <-c.ctx.Done():
 			return
 		case op := <-ctx.OpC:
-			if op.IsTransactionApplyOps() {
-				ops := c.GetTransactionApplyOpsList(op)
-				if len(ops) == 0 {
-					break
-				}
-				for _, newOp := range ops {
-					if c.CheckReplicateDb(newOp.GetDatabase(), newOp.GetCollection()) {
-						c.ToInputCallback(newOp)
-					}
-				}
-			} else {
-				c.ToInputCallback(op)
-			}
+			//if op.IsTransactionApplyOps() {
+			//
+			//	ops := c.GetTransactionApplyOpsList(op)
+			//	if len(ops) == 0 {
+			//		break
+			//	}
+			//
+			//	for _, newOp := range ops {
+			//		if c.CheckReplicateDb(newOp.GetDatabase(), newOp.GetCollection()) {
+			//			c.ToInputCallback(newOp)
+			//		}
+			//	}
+			//} else {
+			//	c.ToInputCallback(op)
+			//}
+			c.ToInputCallback(op)
 			c.setLastOpLog(op)
 			break
 		}

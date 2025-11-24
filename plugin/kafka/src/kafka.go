@@ -19,7 +19,7 @@ package src
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"time"
 )

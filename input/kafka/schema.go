@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 )

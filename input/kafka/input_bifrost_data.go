@@ -17,7 +17,7 @@ package kafka
 
 import (
 	"encoding/json"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 	outputDriver "github.com/brokercap/Bifrost/plugin/driver"
 )

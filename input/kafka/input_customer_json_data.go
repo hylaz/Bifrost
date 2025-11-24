@@ -16,7 +16,7 @@ limitations under the License.
 package kafka
 
 import (
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"log"
 	"runtime/debug"
 	"strings"

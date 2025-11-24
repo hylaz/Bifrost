@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/juju/errors"
 	elastic "github.com/olivere/elastic/v7"
 
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
@@ -57,7 +56,7 @@ func (This *Conn) makeInsertRequest(rows []map[string]interface{}) ([]elastic.Bu
 	for _, values := range rows {
 		id, err := This.getDocID(values)
 		if err != nil {
-			return nil, errors.Trace(err)
+			return nil, err
 		}
 		req := elastic.NewBulkUpdateRequest().
 			Index(This.p.EsIndexName).
@@ -78,7 +77,7 @@ func (This *Conn) makeDeleteRequest(rows []map[string]interface{}) ([]elastic.Bu
 	for _, values := range rows {
 		id, err := This.getDocID(values)
 		if err != nil {
-			return nil, errors.Trace(err)
+			return nil, err
 		}
 		req := elastic.NewBulkDeleteRequest().
 			Index(This.p.EsIndexName).
@@ -91,13 +90,13 @@ func (This *Conn) makeDeleteRequest(rows []map[string]interface{}) ([]elastic.Bu
 // makeUpdateRequest makeUpdateRequest
 func (This *Conn) makeUpdateRequest(rows []map[string]interface{}) ([]elastic.BulkableRequest, error) {
 	if len(rows)%2 != 0 {
-		return nil, errors.Errorf("invalid update rows event, must have 2x rows, but %d", len(rows))
+		return nil, fmt.Errorf("invalid update rows event, must have 2x rows, but %d", len(rows))
 	}
 	reqs := make([]elastic.BulkableRequest, 0, len(rows))
 	for i := 0; i < len(rows); i += 2 {
 		afterID, err := This.getDocID(rows[i+1])
 		if err != nil {
-			return nil, errors.Trace(err)
+			return nil, err
 		}
 		req := elastic.NewBulkUpdateRequest().
 			Index(This.p.EsIndexName).
@@ -129,7 +128,7 @@ func (output *Conn) sendBulkRequests(reqs []elastic.BulkableRequest) error {
 	bulkRequest.Add(reqs...)
 	bulkResponse, err := bulkRequest.Do(context.Background())
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 
 	for _, item := range bulkResponse.Items {
@@ -148,9 +147,9 @@ func (output *Conn) sendBulkRequests(reqs []elastic.BulkableRequest) error {
 				}
 			} else if result.Status == http.StatusTooManyRequests {
 				// when the server returns 429, it must be that all requests have failed.
-				return errors.Errorf("[output_elasticsearch] The remote server returned an error: (429) Too Many Requests.")
+				return fmt.Errorf("[output_elasticsearch] The remote server returned an error: (429) Too Many Requests.")
 			} else {
-				return errors.Errorf("[output_elasticsearch] Received an error from server, status: [%d], index: %s, action:%s ,status:%d ,details: %+v.", result.Status, result.Index, action, result.Status, result.Error)
+				return fmt.Errorf("[output_elasticsearch] Received an error from server, status: [%d], index: %s, action:%s ,status:%d ,details: %+v.", result.Status, result.Index, action, result.Status, result.Error)
 			}
 		}
 	}

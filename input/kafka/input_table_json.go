@@ -19,7 +19,7 @@ package kafka
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"strings"
 
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
