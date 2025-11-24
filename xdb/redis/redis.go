@@ -3,11 +3,12 @@ package redis
 import (
 	"context"
 	"fmt"
-	"github.com/brokercap/Bifrost/xdb/driver"
-	"github.com/go-redis/redis/v8"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/brokercap/Bifrost/xdb/driver"
+	"github.com/redis/go-redis/v9"
 )
 
 const VERSION = "v1.1.1"

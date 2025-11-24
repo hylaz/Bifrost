@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/brokercap/Bifrost/plugin/driver"
+
 	//"github.com/go-redis/redis"
-	"github.com/go-redis/redis/v8"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const VERSION = "v1.7.4"
