@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
-	"log"
+	"github.com/sirupsen/logrus"
 	"strings"
 )
 
@@ -128,7 +128,7 @@ func (c *MysqlInput) GetClickHouseSchemaTableFieldList(schema string, table stri
 	rows, err := db.Query(sql, p)
 	defer rows.Close()
 	if err != nil {
-		log.Printf("%v\n", err)
+		logrus.Printf("%v", err)
 		return
 	}
 

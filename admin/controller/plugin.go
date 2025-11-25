@@ -27,7 +27,6 @@ type PluginController struct {
 
 func (c *PluginController) Index() {
 	driversMap := driver.Drivers()
-	//因为plugin 加载so 插件，有可能会异常，所以这里需要你把异常的插件列表也加载进来并进行显示出来
 	errorPluginMap := plugin.GetErrorPluginList()
 	for name, v := range errorPluginMap {
 		driversMap[name] = v
@@ -40,7 +39,6 @@ func (c *PluginController) Index() {
 
 func (c *PluginController) List() {
 	driversMap := driver.Drivers()
-	//因为plugin 加载so 插件，有可能会异常，所以这里需要你把异常的插件列表也加载进来并进行显示出来
 	errorPluginMap := plugin.GetErrorPluginList()
 	for name, v := range errorPluginMap {
 		driversMap[name] = v
@@ -61,10 +59,6 @@ func (c *PluginController) Reload() {
 }
 
 func (c *PluginController) GetSupportedOtherOutputTypeList() {
-	/*
-		获取output插件支持的格式输出对象类型
-		比如转成canal格式,tableMap格式
-	*/
 	c.SetJsonData(driver.GetSupportedOtherOutputTypeList())
 	c.StopServeJSON()
 }

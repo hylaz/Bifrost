@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const WARNING_KEY_PREFIX = "bifrost_warning_config_"
+const WARNING_KEY_PREFIX = "bifrost:warning:config:"
 
 type WaringConfig struct {
 	Type  string
@@ -17,8 +17,8 @@ type WaringConfig struct {
 
 var allWaringConfigCacheMap map[string]WaringConfig
 
-var firstStartUp bool = true
-var lastConfigID int = 0
+var firstStartUp = true
+var lastConfigID = 0
 
 func init() {
 	allWaringConfigCacheMap = make(map[string]WaringConfig, 0)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/brokercap/Bifrost/Bristol/mysql"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
-	"log"
+	"github.com/sirupsen/logrus"
 	"strings"
 	"time"
 )
@@ -31,7 +31,7 @@ func (c *MysqlInput) GetSchemaList() ([]string, error) {
 	rows, err := db.Query(sql, p)
 	defer rows.Close()
 	if err != nil {
-		log.Printf("%v\n", err)
+		logrus.Printf("%v\n", err)
 		return databaseList, nil
 	}
 
@@ -65,7 +65,7 @@ func (c *MysqlInput) GetSchemaTableList(schema string) (tableList []inputDriver.
 	rows, err := db.Query(sql, p)
 	defer rows.Close()
 	if err != nil {
-		log.Printf("%v\n", err)
+		logrus.Printf("%v", err)
 		return
 	}
 
@@ -106,7 +106,7 @@ func (c *MysqlInput) GetSchemaTableFieldList0(schema string, table string) (Fiel
 	rows, err := db.Query(sql, p)
 	defer rows.Close()
 	if err != nil {
-		log.Printf("%v\n", err)
+		logrus.Printf("%v", err)
 		return
 	}
 

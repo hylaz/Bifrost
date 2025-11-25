@@ -106,7 +106,6 @@ func Register(name string, NewDriverFun NewDriver, version string, bifrost_versi
 func Drivers() map[string]DriverStructure {
 	driversMu.RLock()
 	defer driversMu.RUnlock()
-	//json 一次是为了重新拷贝一个内存空间的map出来,防止外部新增修改
 	s, err := json.Marshal(drivers)
 	if err != nil {
 		return make(map[string]DriverStructure, 0)

@@ -1,27 +1,11 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package mongo
 
 import (
 	"fmt"
 	outputDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/rwynn/gtm/v2"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"log"
 	"reflect"
 	"time"
 )
@@ -59,7 +43,7 @@ func (c *MongoInput) BuildRowEvent(op *gtm.Op) *outputDriver.PluginDataType {
 	var ok bool
 	var docId primitive.ObjectID
 	if docId, ok = op.Id.(primitive.ObjectID); !ok {
-		log.Printf("[ERROR] MongoInput BuildRowEvent database:%s table:%s _id:%+v (%+v),is not primitive.ObjectID", schemaName, tableName, op.Id, reflect.TypeOf(op.Id))
+		logrus.Printf("[ERROR] MongoInput BuildRowEvent database:%s table:%s _id:%+v (%+v),is not primitive.ObjectID", schemaName, tableName, op.Id, reflect.TypeOf(op.Id))
 		return nil
 	}
 	switch op.Operation {
@@ -71,7 +55,7 @@ func (c *MongoInput) BuildRowEvent(op *gtm.Op) *outputDriver.PluginDataType {
 	case "u":
 		eventType = "update"
 		if op.Data == nil {
-			log.Printf("[WARN] input[%s] BuildRowEvent[update] _id:%s data is nil \n", "mongo", docId.Hex())
+			logrus.Printf("[WARN] input[%s] BuildRowEvent[update] _id:%s data is nil \n", "mongo", docId.Hex())
 			op.Data = map[string]interface{}{"_id": docId.Hex()}
 		} else {
 			op.Data["_id"] = docId.Hex()
@@ -80,7 +64,6 @@ func (c *MongoInput) BuildRowEvent(op *gtm.Op) *outputDriver.PluginDataType {
 		break
 	case "d":
 		eventType = "delete"
-		// delete事件只有_id,不返回旧数据，为了兼容后续有可能会返回 旧数据的情况下，这里做一次判断
 		if op.Data == nil {
 			op.Data = map[string]interface{}{"_id": docId.Hex()}
 		} else {
@@ -109,7 +92,6 @@ func (c *MongoInput) BuildRowEvent(op *gtm.Op) *outputDriver.PluginDataType {
 	}
 }
 
-// 会根据值类型,对值进行修改作内容，比如time.Time会修改为 2006-01-02 15:04:05 字符串格式
 func (c *MongoInput) TransferDataAndColumnMapping(row map[string]interface{}) (columnMapping map[string]string) {
 	if row == nil {
 		return nil

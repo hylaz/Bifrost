@@ -5,9 +5,9 @@ import (
 	"fmt"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 	"github.com/rwynn/gtm/v2"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"log"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -73,7 +73,7 @@ func (c *MongoInput) setStatus(status inputDriver.StatusFlag) {
 func (c *MongoInput) Start(ch chan *inputDriver.PluginStatus) error {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("[ERROR] output[%s] panic err:%+v \n", "mongo", string(debug.Stack()))
+			logrus.Printf("[ERROR] output[%s] panic err:%+v \n", "mongo", string(debug.Stack()))
 		}
 		c.setStatus(inputDriver.CLOSED)
 	}()
@@ -148,8 +148,6 @@ func (c *MongoInput) StartOnlyReplicate0() error {
 	}
 	defer client.Disconnect(c.ctx)
 	var after gtm.TimestampGenerator
-	// after == nil, 则默认采用最新的位点
-	// after 函数返回空位点，则是采用oplog中最早的位点，nil 和 空字符串是有区别的
 	if c.currentPosition != nil {
 		after = c.GtmAfter
 	}
@@ -173,12 +171,6 @@ func (c *MongoInput) GtmAfter(client *mongo.Client, options *gtm.Options) (primi
 }
 
 func (c *MongoInput) OpFitler(op *gtm.Op) bool {
-	// 这里实际是在mongo gtm中回调执行的
-	// 至于需要不需要再在当前Input中返回给server端，后面代码中对于 applyOps 还会继续判断处理
-	//if op.IsTransactionApplyOps() {
-	//	return true
-	//}
-
 	var schemaName = op.GetDatabase()
 	var table string
 	switch op.Operation {
@@ -197,7 +189,6 @@ func (c *MongoInput) OpFitler(op *gtm.Op) bool {
 	default:
 		table = op.GetCollection()
 	}
-	//log.Println(schemaName, "table:", table)
 	if c.CheckReplicateDb(schemaName, table) {
 		return true
 	}
@@ -222,21 +213,6 @@ func (c *MongoInput) ConsumeMongoOpLog(ctx *gtm.OpCtx) {
 		case <-c.ctx.Done():
 			return
 		case op := <-ctx.OpC:
-			//if op.IsTransactionApplyOps() {
-			//
-			//	ops := c.GetTransactionApplyOpsList(op)
-			//	if len(ops) == 0 {
-			//		break
-			//	}
-			//
-			//	for _, newOp := range ops {
-			//		if c.CheckReplicateDb(newOp.GetDatabase(), newOp.GetCollection()) {
-			//			c.ToInputCallback(newOp)
-			//		}
-			//	}
-			//} else {
-			//	c.ToInputCallback(op)
-			//}
 			c.ToInputCallback(op)
 			c.setLastOpLog(op)
 			break

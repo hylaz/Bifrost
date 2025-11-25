@@ -3,17 +3,17 @@ package mongo
 import (
 	"context"
 	outputDriver "github.com/brokercap/Bifrost/plugin/driver"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log"
 	"time"
 )
 
 func (c *MongoInput) BatchStart() (err error) {
-	log.Printf("[INFO] output[%s] BatchStart starting \n", OutPutName)
-	defer log.Printf("[INFO] output[%s] BatchStart end \n", OutPutName)
+	logrus.Printf("[INFO] output[%s] BatchStart starting \n", OutPutName)
+	defer logrus.Printf("[INFO] output[%s] BatchStart end \n", OutPutName)
 	dbTableList, err := c.GetBatchTableList()
 	if err != nil {
 		return err
@@ -75,8 +75,8 @@ func (c *MongoInput) TableBatchStart(collection *mongo.Collection, perBatchLimit
 	var schemaName = collection.Database().Name()
 	var tableName = collection.Name()
 
-	log.Printf("[INFO] output[%s] schemaName:%s tableName:%s scheTableBatchStart starting \n", OutPutName, schemaName, tableName)
-	defer log.Printf("[INFO] output[%s] schemaName:%s tableName:%s scheTableBatchStart end \n", OutPutName, schemaName, tableName)
+	logrus.Printf("[INFO] output[%s] schemaName:%s tableName:%s scheTableBatchStart starting \n", OutPutName, schemaName, tableName)
+	defer logrus.Printf("[INFO] output[%s] schemaName:%s tableName:%s scheTableBatchStart end \n", OutPutName, schemaName, tableName)
 
 	var nextMinId interface{}
 	for {
