@@ -6,10 +6,9 @@ import (
 	"fmt"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
 	"runtime/debug"
 	"strings"
 )
@@ -25,7 +24,7 @@ type Conn struct {
 	pluginDriver.PluginDriverInterface
 	Uri    *string
 	status string
-	conn   *mgo.Session
+	//conn   *mgo.Session
 	client *mongo.Client
 	err    error
 	p      *PluginParam
@@ -140,7 +139,8 @@ func (This *Conn) Close() bool {
 		}
 	}()
 	This.status = "close"
-	This.conn = nil
+	This.client = nil
+
 	This.err = fmt.Errorf("close")
 	return true
 }
@@ -152,23 +152,35 @@ func (This *Conn) initPrimaryKeys(data *pluginDriver.PluginDataType) {
 	}
 }
 
-func (This *Conn) createIndex(c *mgo.Collection) {
-	indexTableKey := c.Database.Name + "#" + c.Name
+func (This *Conn) createIndex(c *mongo.Collection) {
+
+	indexTableKey := c.Database().Name() + "#" + c.Name()
 	if _, ok := This.p.hadIndexMap[indexTableKey]; !ok {
-		indexs, err := c.Indexes()
-		if err == nil {
-			//假如表里已经拥有了指定索引名称的索引，而不再创建索引
-			//假如这里创建了2个字段的索引，用户又在mongodb server修改了这个索引，是很有可能会出问题的，使用的时候，需要注意
-			for _, indexInfo := range indexs {
-				if indexInfo.Name == This.p.indexName {
-					This.p.hadIndexMap[indexTableKey] = true
-					return
-				}
-			}
+		//indexs, err := c.Indexes()
+		//if err == nil {
+		//	//假如表里已经拥有了指定索引名称的索引，而不再创建索引
+		//	//假如这里创建了2个字段的索引，用户又在mongodb server修改了这个索引，是很有可能会出问题的，使用的时候，需要注意
+		//	for _, indexInfo := range indexs {
+		//		if indexInfo.Name == This.p.indexName {
+		//			This.p.hadIndexMap[indexTableKey] = true
+		//			return
+		//		}
+		//	}
+		//}
+		//index := mgo.Index{Key: This.p.primaryKeys, Unique: true, Name: This.p.indexName}
+		//This.p.hadIndexMap[indexTableKey] = true
+		//c.EnsureIndex(index)
+
+		keys := make(bson.D, 0, len(This.p.primaryKeys))
+		for _, key := range This.p.primaryKeys {
+			keys = append(keys, bson.E{Key: key, Value: 1}) // 1 表示升序
 		}
-		index := mgo.Index{Key: This.p.primaryKeys, Unique: true, Name: This.p.indexName}
-		This.p.hadIndexMap[indexTableKey] = true
-		c.EnsureIndex(index)
+
+		mod := mongo.IndexModel{
+			Keys:    keys,
+			Options: options.Index().SetName(This.p.indexName).SetUnique(true),
+		}
+		c.Indexes().CreateOne(context.Background(), mod)
 	}
 }
 
@@ -196,7 +208,7 @@ func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (LastSuc
 		}
 	}()
 	c := This.client.Database(SchemaName).Collection(TableName)
-	//This.createIndex(c)
+	This.createIndex(c)
 	k := make(bson.M, 1)
 	for _, key := range This.p.primaryKeys {
 		if _, ok := data.Rows[n][key]; ok {
