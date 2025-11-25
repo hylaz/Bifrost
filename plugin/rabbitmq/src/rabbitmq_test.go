@@ -1,14 +1,11 @@
-//go:build integration
-// +build integration
-
 package src_test
 
 import (
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	MyPlugin "github.com/brokercap/Bifrost/plugin/rabbitmq/src"
 	"github.com/brokercap/Bifrost/sdk/pluginTestData"
-	"github.com/streadway/amqp"
-	"log"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/sirupsen/logrus"
 	"testing"
 	"time"
 )
@@ -133,8 +130,8 @@ func TestCheckData(t *testing.T) {
 			for i := 0; i < len(data); i++ {
 				select {
 				case d := <-msgs:
-					log.Println("src：", data[i].Rows[len(data[i].Rows)-1])
-					log.Println(string(d.Body))
+					logrus.Println("src：", data[i].Rows[len(data[i].Rows)-1])
+					logrus.Println(string(d.Body))
 					checkResult, err := e.CheckData2(data[i].Rows[len(data[i].Rows)-1], string(d.Body))
 					d.Ack(false)
 					if err != nil {

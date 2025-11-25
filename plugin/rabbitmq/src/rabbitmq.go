@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
-	"github.com/streadway/amqp"
-	"log"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/sirupsen/logrus"
 	"strconv"
 )
 
@@ -142,7 +142,7 @@ func (This *Conn) Close() bool {
 	func() {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Println("ReConnect recory:", err)
+				logrus.Println("ReConnect recory:", err)
 				return
 			}
 		}()

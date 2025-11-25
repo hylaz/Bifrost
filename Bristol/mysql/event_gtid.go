@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/satori/go.uuid"
+	"github.com/gofrs/uuid/v5"
 	"strings"
 )
 

@@ -5,14 +5,13 @@ import (
 	dbDriver "database/sql/driver"
 	"encoding/json"
 	"fmt"
+	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"log"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 )
 
 const VERSION = "v2.1.1"

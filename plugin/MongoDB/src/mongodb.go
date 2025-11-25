@@ -208,7 +208,7 @@ func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (LastSuc
 		}
 	}()
 	c := This.client.Database(SchemaName).Collection(TableName)
-	This.createIndex(c)
+	//This.createIndex(c)
 	k := make(bson.M, 1)
 	for _, key := range This.p.primaryKeys {
 		if _, ok := data.Rows[n][key]; ok {
