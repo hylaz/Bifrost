@@ -71,10 +71,11 @@ func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
 		return nil, err
 	}
 	var param PluginParam
-	err2 := json.Unmarshal(s, &param)
-	if err2 != nil {
-		return nil, err2
+	err = json.Unmarshal(s, &param)
+	if err != nil {
+		return nil, err
 	}
+
 	if param.SchemaName == "" || param.TableName == "" {
 		return nil, fmt.Errorf("SchemaName,TableName can't be empty")
 	}
@@ -181,11 +182,6 @@ func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (LastSuc
 	n := len(data.Rows) - 1
 	SchemaName := fmt.Sprint(pluginDriver.TransfeResult(This.p.SchemaName, data, n))
 	TableName := fmt.Sprint(pluginDriver.TransfeResult(This.p.TableName, data, n))
-	/*
-		if _,ok := data.Rows[n][This.p.PrimaryKey];!ok{
-			return nil,data,fmt.Errorf("PrimaryKey "+ This.p.PrimaryKey +" is not exsit")
-		}
-	*/
 	defer func() {
 		if err := recover(); err != nil {
 			LastSuccessCommitData = nil

@@ -1,32 +1,15 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 	"time"
 
 	"github.com/brokercap/Bifrost/Bristol/mysql"
-	"github.com/brokercap/Bifrost/server"
-
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
+	"github.com/brokercap/Bifrost/server"
 )
 
 type DBController struct {
@@ -34,23 +17,23 @@ type DBController struct {
 }
 
 type DbUpdateParam struct {
-	DbName            string
-	InputType         string
-	SchemaName        string
-	TableName         string
-	Uri               string
+	DbName            string `json:"DbName" yaml:"DbName" mapstructure:"DbName"`
+	InputType         string `json:"InputType" yaml:"InputType" mapstructure:"InputType"`
+	SchemaName        string `json:"SchemaName" yaml:"SchemaName" mapstructure:"SchemaName"`
+	TableName         string `json:"TableName" yaml:"TableName" mapstructure:"TableName"`
+	Uri               string `json:"Uri" yaml:"Uri" mapstructure:"Uri"`
 	BinlogFileName    string
 	BinlogPosition    uint32
 	ServerId          uint32
 	MaxBinlogFileName string
 	MaxBinlogPosition uint32
 	UpdateToServer    int8
-	CheckPrivilege    bool
+	CheckPrivilege    bool `json:"CheckPrivilege" yaml:"CheckPrivilege" mapstructure:"CheckPrivilege"`
 	Gtid              string
 }
 
 func (c *DBController) getParam() *DbUpdateParam {
-	body, err := ioutil.ReadAll(c.Ctx.Request.Body)
+	body, err := io.ReadAll(c.Ctx.Request.Body)
 	if err != nil {
 		result := ResultDataStruct{Status: 0, Msg: err.Error(), Data: nil}
 		c.SetJsonData(result)
@@ -250,7 +233,7 @@ func (c *DBController) Close() {
 	return
 }
 
-// 验证连接配置是否有效
+// CheckUri 检查权限
 func (c *DBController) CheckUri() {
 	result := ResultDataStruct{Status: 0, Msg: "error", Data: nil}
 	defer func() {
@@ -262,6 +245,7 @@ func (c *DBController) CheckUri() {
 		result.Msg = " Uri not be empty!"
 		return
 	}
+
 	inputInfo := inputDriver.InputInfo{
 		DbName:         data.DbName,
 		IsGTID:         false,
@@ -283,7 +267,7 @@ func (c *DBController) CheckUri() {
 	return
 }
 
-// 验证连接配置是否有效
+// GetLastPosition 最新位点
 func (c *DBController) GetLastPosition() {
 	type dbInfoStruct struct {
 		BinlogFile            string
@@ -296,6 +280,7 @@ func (c *DBController) GetLastPosition() {
 		NowTimestamp          uint32
 		DelayedTime           uint32
 	}
+
 	result := ResultDataStruct{Status: 0, Msg: "error", Data: nil}
 	defer func() {
 		c.SetJsonData(result)
@@ -306,17 +291,18 @@ func (c *DBController) GetLastPosition() {
 		result.Msg = "DbName not be empty!"
 		return
 	}
+
 	dbObj := server.GetDbInfo(data.DbName)
 	if dbObj == nil {
 		result.Msg = data.DbName + " no exsit"
 		return
 	}
+
 	dbInfo := &dbInfoStruct{NowTimestamp: uint32(time.Now().Unix())}
 	dbInfo.BinlogFile = dbObj.BinlogDumpFileName
 	dbInfo.BinlogPosition = int(dbObj.BinlogDumpPosition)
 	dbInfo.BinlogTimestamp = dbObj.BinlogDumpTimestamp
 	dbInfo.Gtid = dbObj.Gtid
-
 	CurrentPositionInfo, err := server.GetDB(data.DbName).GetCurrentPosition()
 	if err != nil {
 		result.Msg = err.Error()
@@ -336,7 +322,7 @@ func (c *DBController) GetLastPosition() {
 	return
 }
 
-// 获取mysql version
+// GetVersion 获取版本信息
 func (c *DBController) GetVersion() {
 	result := ResultDataStruct{Status: 0, Msg: "error", Data: nil}
 	defer func() {

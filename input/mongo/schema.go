@@ -21,6 +21,7 @@ import (
 	"fmt"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 	"github.com/rwynn/gtm/v2"
+	"github.com/spf13/cast"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -127,18 +128,19 @@ func (c *MongoInput) CheckPrivileg() error {
 	return nil
 }
 
-func (c *MongoInput) CheckUri(CheckPrivileg bool) (result inputDriver.CheckUriResult, err error) {
-	var client *mongo.Client
-	client, err = CreateMongoClient(c.inputInfo.ConnectUri, nil)
+func (c *MongoInput) CheckUri(CheckPrivilege bool) (result inputDriver.CheckUriResult, err error) {
+	client, err := CreateMongoClient(c.inputInfo.ConnectUri, nil)
 	if err != nil {
 		return
 	}
 	defer client.Disconnect(nil)
+
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err = client.Ping(ctx, nil)
 	if err != nil {
 		return
 	}
+
 	result = inputDriver.CheckUriResult{
 		BinlogFile:     DefaultBinlogFileName,
 		BinlogPosition: 0,
@@ -173,14 +175,13 @@ func (c *MongoInput) GetCurrentPosition() (p *inputDriver.PluginPosition, err er
 }
 
 func (c *MongoInput) GetVersion() (version string, err error) {
-	var client *mongo.Client
-	client, err = CreateMongoClient(c.inputInfo.ConnectUri, nil)
+	client, err := CreateMongoClient(c.inputInfo.ConnectUri, nil)
 	if err != nil {
 		return
 	}
-	defer client.Disconnect(nil)
+	defer client.Disconnect(context.Background())
 	var buildInfoDoc bson.M
-	buildInfoCmd := bson.D{{"buildInfo", 1}}
+	buildInfoCmd := bson.M{"buildInfo": 1}
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err = client.Database("admin").RunCommand(ctx, buildInfoCmd).Decode(&buildInfoDoc)
 	if err != nil {
@@ -190,6 +191,6 @@ func (c *MongoInput) GetVersion() (version string, err error) {
 		err = fmt.Errorf("get mongo version empty")
 		return
 	}
-	version = fmt.Sprint(buildInfoDoc["version"])
+	version = cast.ToString(buildInfoDoc["version"])
 	return
 }

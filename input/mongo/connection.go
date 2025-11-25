@@ -24,18 +24,16 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/bsontype"
 )
 
 func CreateMongoClient(uri string, ctx context.Context) (*mongo.Client, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	rb := bson.NewRegistryBuilder()
-	rb.RegisterTypeMapEntry(bsontype.DateTime, reflect.TypeOf(time.Time{}))
-	reg := rb.Build()
+	registry := bson.NewRegistry()
+	registry.RegisterTypeMapEntry(bson.TypeDateTime, reflect.TypeOf(time.Time{}))
 	clientOptions := options.Client()
-	clientOptions.SetRegistry(reg)
+	clientOptions.SetRegistry(registry)
 	clientOptions.ApplyURI(uri)
 	timeOutCtx, _ := context.WithTimeout(ctx, 15*time.Second)
 	client, err := mongo.Connect(timeOutCtx, clientOptions)

@@ -21,9 +21,8 @@ func NewInputPlugin() inputDriver.Driver {
 type MongoInput struct {
 	sync.RWMutex
 	inputDriver.PluginDriverInterface
-	inputInfo       inputDriver.InputInfo
-	currentPosition *primitive.Timestamp
-
+	inputInfo        inputDriver.InputInfo
+	currentPosition  *primitive.Timestamp
 	status           inputDriver.StatusFlag
 	err              error
 	PluginStatusChan chan *inputDriver.PluginStatus

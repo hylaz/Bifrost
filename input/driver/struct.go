@@ -1,7 +1,7 @@
 package driver
 
 type InputInfo struct {
-	DbName         string
+	DbName         string `json:"DbName" yaml:"DbName" mapstructure:"DbName"`
 	IsGTID         bool
 	ConnectUri     string
 	GTID           string

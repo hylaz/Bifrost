@@ -1,18 +1,3 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package controller
 
 import (
@@ -20,7 +5,7 @@ import (
 	"github.com/brokercap/Bifrost/plugin/driver"
 	ToServerStorage "github.com/brokercap/Bifrost/plugin/storage"
 	"github.com/brokercap/Bifrost/server"
-	"io/ioutil"
+	"io"
 )
 
 type ToServerController struct {
@@ -28,16 +13,16 @@ type ToServerController struct {
 }
 
 type ToServerParam struct {
-	ToServerKey string
-	PluginName  string
-	Notes       string
-	ConnUri     string
-	MaxConn     int // 最大连接数
-	MinConn     int // 最小连接数
+	ToServerKey string `json:"ToServerKey"`
+	PluginName  string `json:"PluginName"`
+	Notes       string `json:"Notes"`
+	ConnUri     string `json:"ConnUri"`
+	MaxConn     int    `json:"MaxConn"` // 最大连接数
+	MinConn     int    `json:"MinConn"` // 最小连接数
 }
 
 func (c *ToServerController) getParam() *ToServerParam {
-	body, err := ioutil.ReadAll(c.Ctx.Request.Body)
+	body, err := io.ReadAll(c.Ctx.Request.Body)
 	if err != nil {
 		result := ResultDataStruct{Status: 0, Msg: err.Error(), Data: nil}
 		c.SetJsonData(result)
@@ -110,6 +95,7 @@ func (c *ToServerController) Add() {
 	result = ResultDataStruct{Status: 1, Msg: "success", Data: nil}
 }
 
+// Update 更新数据
 func (c *ToServerController) Update() {
 	param := c.getParam()
 	result := ResultDataStruct{Status: 0, Msg: "error", Data: nil}
@@ -121,6 +107,7 @@ func (c *ToServerController) Update() {
 		result.Msg = "toserverkey,PluginName,connuri muest be not empty"
 		return
 	}
+	defer server.SaveDBConfigInfo()
 	ToServerStorage.UpdateToServerInfo(
 		param.ToServerKey,
 		ToServerStorage.ToServer{
@@ -130,7 +117,6 @@ func (c *ToServerController) Update() {
 			MaxConn:    param.MaxConn,
 			MinConn:    param.MinConn,
 		})
-	defer server.SaveDBConfigInfo()
 	result = ResultDataStruct{Status: 1, Msg: "success", Data: nil}
 }
 

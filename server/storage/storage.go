@@ -3,24 +3,20 @@ package storage
 import (
 	"github.com/brokercap/Bifrost/config"
 	"github.com/brokercap/Bifrost/xdb"
+	"github.com/sirupsen/logrus"
 	"io"
-	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 	"time"
 )
 
-var xdbClient *xdb.Client
-var xdbErr error
-
 const DEFAULT_TABLE = "bifrost"
 
+var xdbClient *xdb.Client
+var xdbErr error
 var metaStorageType string
 var path string
 var dbSourceKey []byte
-
-func init() {}
 
 func InitStorage() {
 	metaStorageType = strings.ToLower(config.GetConfigVal("Bifrostd", "meta_storage_type"))
@@ -35,44 +31,11 @@ func InitStorage() {
 	}
 	xdbClient, xdbErr = xdb.NewClient(metaStorageType, path)
 	if xdbErr != nil {
-		log.Println(xdbErr)
+		logrus.Println(xdbErr)
 		os.Exit(1)
 	}
 	xdbClient.SetPrefix(config.GetConfigVal("Bifrostd", "meta_storage_key_prefix"))
 	dbSourceKey = []byte("dbSourceData")
-}
-
-func GetKeyVal(key []byte) (data []byte, err error) {
-	for i := 0; i < 3; i++ {
-		data, err = xdbClient.GetKeyValBytes(DEFAULT_TABLE, string(key))
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Duration(1) * time.Second)
-	}
-	return
-}
-
-func PutKeyVal(key []byte, val []byte) (err error) {
-	for i := 0; i < 3; i++ {
-		err = xdbClient.PutKeyValBytes(DEFAULT_TABLE, string(key), val)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Duration(1) * time.Second)
-	}
-	return
-}
-
-func DelKeyVal(key []byte) (err error) {
-	for i := 0; i < 3; i++ {
-		err = xdbClient.DelKeyVal(DEFAULT_TABLE, string(key))
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Duration(1) * time.Second)
-	}
-	return
 }
 
 type ListStruct struct {
@@ -110,15 +73,14 @@ func GetDBInfo() (data []byte, err error) {
 		data, err = GetKeyVal(dbSourceKey)
 		break
 	default:
-		var DataFile string = config.DataDir + "/db.Bifrost"
-		//DataTmpFile = dataDir+"/db.Bifrost.tmp"
+		var DataFile = config.DataDir + "/db.Bifrost"
 		var fi *os.File
 		fi, err = os.Open(DataFile)
 		if err != nil {
 			return
 		}
 		defer fi.Close()
-		data, err = ioutil.ReadAll(fi)
+		data, err = io.ReadAll(fi)
 		if err != nil {
 			return
 		}
@@ -132,24 +94,24 @@ func SaveDBInfo(data []byte) (err error) {
 		err = PutKeyVal(dbSourceKey, data)
 		break
 	default:
-		var DataFile string = config.DataDir + "/db.Bifrost"
-		var DataTmpFile string = config.DataDir + "/db.Bifrost.tmp"
+		var DataFile = config.DataDir + "/db.Bifrost"
+		var DataTmpFile = config.DataDir + "/db.Bifrost.tmp"
 		var f *os.File
-		f, err = os.OpenFile(DataTmpFile, os.O_CREATE|os.O_RDWR, 0700) //打开文件
+		f, err = os.OpenFile(DataTmpFile, os.O_CREATE|os.O_RDWR, 0755) //打开文件
 		if err != nil {
-			log.Println("open file error:", err)
+			logrus.Println("open file error:", err)
 			return
 		}
 		_, err = io.WriteString(f, string(data)) //写入文件(字符串)
 		if err != nil {
 			f.Close()
-			log.Printf("save data to file error:%s, data:%s \r\n", err, string(data))
+			logrus.Printf("save data to file error:%s, data:%s \r\n", err, string(data))
 			return
 		}
 		f.Close()
 		err = os.Rename(DataTmpFile, DataFile)
 		if err != nil {
-			log.Println("doSaveDbInfo os.Rename err:", err)
+			logrus.Println("doSaveDbInfo os.Rename err:", err)
 		}
 		break
 	}

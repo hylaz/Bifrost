@@ -104,6 +104,7 @@ func GetSnapshotData2() ([]byte, error) {
 	return json.Marshal(data)
 }
 
+// DoSaveSnapshotData 持久化保存
 func DoSaveSnapshotData() {
 	var data []byte
 	var err error
