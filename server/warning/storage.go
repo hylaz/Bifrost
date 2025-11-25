@@ -3,7 +3,7 @@ package warning
 import (
 	"encoding/json"
 	"github.com/brokercap/Bifrost/server/storage"
-	"log"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
 )
@@ -24,20 +24,19 @@ func init() {
 	allWaringConfigCacheMap = make(map[string]WaringConfig, 0)
 }
 
-func getLastConfigID() int {
+func getLastConfigId() int {
 	l.Lock()
+	defer l.Unlock()
 	lastConfigID++
-	ID := lastConfigID
-	l.Unlock()
-	return ID
+	return lastConfigID
 }
 
 func getNewWaringKey() string {
-	return WARNING_KEY_PREFIX + strconv.Itoa(getLastConfigID())
+	return WARNING_KEY_PREFIX + strconv.Itoa(getLastConfigId())
 }
 
-func getWaringKey(ID int) string {
-	return WARNING_KEY_PREFIX + strconv.Itoa(ID)
+func getWaringKey(id int) string {
+	return WARNING_KEY_PREFIX + strconv.Itoa(id)
 }
 
 func InitWarningConfigCache() {
@@ -45,19 +44,18 @@ func InitWarningConfigCache() {
 		return
 	}
 	firstStartUp = false
+
 	data := storage.GetListByPrefix([]byte(WARNING_KEY_PREFIX))
 	for _, v := range data {
 		key := v.Key
-		t := strings.Split(key, "_")
-		idString := t[len(t)-1]
-		intA, err := strconv.Atoi(idString)
+		t := strings.Split(key, ":")
+		id, err := strconv.Atoi(t[len(t)-1])
 		if err != nil {
 			continue
 		}
-		if intA > lastConfigID {
-			lastConfigID = intA
+		if id > lastConfigID {
+			lastConfigID = id
 		}
-
 		var tmpWarningConfig WaringConfig
 		err2 := json.Unmarshal([]byte(v.Value), &tmpWarningConfig)
 		if err2 != nil {
@@ -105,14 +103,13 @@ func RecoveryWarning(content *json.RawMessage) {
 	var data map[string]WaringConfig
 	errors := json.Unmarshal(*content, &data)
 	if errors != nil {
-		log.Println("recorery warning content errors;", errors, " content:", content)
+		logrus.Println("recorery warning content errors;", errors, " content:", content)
 		return
 	}
 	var i int
 	var Id string
 	for key, v := range data {
-		//这里为什么取 最后一个 _ 之后的数据,是因为 WARNING_KEY_PREFIX 后面有可能不同版本,前缀值不一样,考滤兼容性问题
-		i = strings.LastIndexAny(key, "_")
+		i = strings.LastIndexAny(key, ":")
 		if i < 1 {
 			continue
 		}
