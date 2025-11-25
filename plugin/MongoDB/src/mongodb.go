@@ -1,12 +1,15 @@
 package src
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
+	"github.com/sirupsen/logrus"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
-	"log"
 	"runtime/debug"
 	"strings"
 )
@@ -23,6 +26,7 @@ type Conn struct {
 	Uri    *string
 	status string
 	conn   *mgo.Session
+	client *mongo.Client
 	err    error
 	p      *PluginParam
 }
@@ -101,13 +105,13 @@ func (This *Conn) SetParam(p interface{}) (interface{}, error) {
 
 func (This *Conn) Connect() bool {
 	var err error
-	This.conn, err = mgo.Dial(*This.Uri)
+	opt := options.Client().ApplyURI(*This.Uri)
+	This.client, err = mongo.Connect(context.Background(), opt)
 	if err != nil {
 		This.err = err
 		This.status = "close"
 		return false
 	}
-	This.conn.SetMode(mgo.Monotonic, true)
 	This.err = nil
 	This.status = "running"
 	return true
@@ -131,8 +135,8 @@ func (This *Conn) Close() bool {
 				return
 			}
 		}()
-		if This.conn != nil {
-			This.conn.Close()
+		if This.client != nil {
+			This.client.Disconnect(context.Background())
 		}
 	}()
 	This.status = "close"
@@ -187,12 +191,12 @@ func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (LastSuc
 			LastSuccessCommitData = nil
 			e = fmt.Errorf(string(debug.Stack()))
 			This.err = e
-			log.Println(e)
+			logrus.Println(e)
 			return
 		}
 	}()
-	c := This.conn.DB(SchemaName).C(TableName)
-	This.createIndex(c)
+	c := This.client.Database(SchemaName).Collection(TableName)
+	//This.createIndex(c)
 	k := make(bson.M, 1)
 	for _, key := range This.p.primaryKeys {
 		if _, ok := data.Rows[n][key]; ok {
@@ -201,7 +205,8 @@ func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (LastSuc
 			return nil, data, fmt.Errorf("key:" + key + " no exsit")
 		}
 	}
-	_, err := c.Upsert(k, data.Rows[n])
+	opts := options.Update().SetUpsert(true)
+	_, err := c.UpdateOne(context.Background(), k, data.Rows[n], opts)
 	if err != nil {
 		return nil, data, err
 	}
@@ -228,14 +233,15 @@ func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (LastSucces
 			LastSuccessCommitData = nil
 			e = fmt.Errorf(string(debug.Stack()))
 			This.err = e
-			log.Println(string(debug.Stack()))
+			logrus.Println(string(debug.Stack()))
 			return
 		}
 	}()
 	SchemaName := fmt.Sprint(pluginDriver.TransfeResult(This.p.SchemaName, data, 0))
 	TableName := fmt.Sprint(pluginDriver.TransfeResult(This.p.TableName, data, 0))
-	c := This.conn.DB(SchemaName).C(TableName)
-	This.createIndex(c)
+	//c := This.conn.DB(SchemaName).C(TableName)
+	c := This.client.Database(SchemaName).Collection(TableName)
+	//This.createIndex(c)
 	k := make(bson.M, 1)
 	for _, key := range This.p.primaryKeys {
 		if _, ok := data.Rows[0][key]; ok {
@@ -244,7 +250,7 @@ func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (LastSucces
 			return nil, data, fmt.Errorf("key:" + key + " no exsit")
 		}
 	}
-	err := c.Remove(k)
+	_, err := c.DeleteOne(context.Background(), k)
 	if err != nil {
 		return nil, data, err
 	}
