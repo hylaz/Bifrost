@@ -12,6 +12,8 @@ var (
 	drivers   = make(map[string]DriverStructure)
 )
 
+//Pebble BadgerDB BoltDB
+
 type DriverStructure struct {
 	Version string // 版本
 	Error   string

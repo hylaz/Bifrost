@@ -2,7 +2,7 @@ package count
 
 import (
 	"github.com/brokercap/Bifrost/config"
-	"log"
+	"github.com/sirupsen/logrus"
 	"strings"
 	"sync"
 	"time"
@@ -140,7 +140,7 @@ func SetChannel(db string, channelId string) chan *FlowCount {
 			},
 		}
 		flowChan := setChannelChan(db + " # " + channelId)
-		log.Println(db, "add channelCount:", channelId)
+		logrus.Println(db, "add channelCount:", channelId)
 		go channel_flowcount_sonsume(db, channelId, flowChan)
 		return flowChan
 	}
@@ -163,7 +163,7 @@ func DelChannel(db string, channelId string) {
 	l.Lock()
 	delete(dbCountChanMap[db].ChannelMap, channelId)
 	l.Unlock()
-	log.Println(db, "del channelCount:", channelId)
+	logrus.Println(db, "del channelCount:", channelId)
 	return
 }
 
@@ -186,7 +186,7 @@ func SetTable(db string, tableId string) {
 			},
 		}
 		dbCountChanMap[db].Unlock()
-		log.Println(db, "add table to channelCount:", tableId)
+		logrus.Println(db, "add table to channelCount:", tableId)
 	}
 	l.Unlock()
 }
@@ -199,7 +199,7 @@ func DelTable(db string, tableId string) {
 	dbCountChanMap[db].Lock()
 	if _, ok := dbCountChanMap[db].TableMap[tableId]; ok {
 		delete(dbCountChanMap[db].TableMap, tableId)
-		log.Println(db, "del table from channelCount:", tableId)
+		logrus.Println(db, "del table from channelCount:", tableId)
 	}
 	dbCountChanMap[db].Unlock()
 	l.Unlock()

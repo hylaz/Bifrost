@@ -1,6 +1,7 @@
 package count
 
 import (
+	"github.com/sirupsen/logrus"
 	"log"
 	"runtime"
 	"runtime/debug"
@@ -11,13 +12,13 @@ func channel_flowcount_sonsume(db string, channelId string, flowchan chan *FlowC
 	defer func() {
 		if err := recover(); err != nil {
 			delChannelChan(db + "-" + channelId)
-			log.Println(db, channelId, " channel_flowcount_sonsume recover: ", err, string(debug.Stack()))
+			logrus.Println(db, channelId, " channel_flowcount_sonsume recover: ", err, string(debug.Stack()))
 		}
 	}()
 
-	log.Println(db, channelId, "channel count start")
+	logrus.Println(db, channelId, "channel count start")
 	defer func() {
-		log.Println(db, channelId, "channel count over")
+		logrus.Println(db, channelId, "channel count over")
 	}()
 	var DoMinuteSlice bool = false
 	var DoTenMinuteSlice bool = false

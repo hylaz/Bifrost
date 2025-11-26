@@ -3,19 +3,18 @@ package server
 import (
 	"github.com/brokercap/Bifrost/config"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
-	"log"
+	"github.com/sirupsen/logrus"
 	"time"
 )
 
-// 定时计算最小位点
 func (db *db) CronCalcMinPosition() (p *inputDriver.PluginPosition) {
 	// 假如不需要定时计算全量，则直接退出
 	if !db.inputDriverObj.IsSupported(inputDriver.SupportNeedMinPosition) {
 		return
 	}
-	log.Println(db.Name, " CronCalcMinPosition start")
+	logrus.Println(db.Name, " CronCalcMinPosition start")
 	defer func() {
-		log.Println(db.Name, " CronCalcMinPosition end")
+		logrus.Println(db.Name, " CronCalcMinPosition end")
 	}()
 	// 设置3500ms，是为了和 3秒的进行保存位点的任务进行错开
 	timeDuration := time.Duration(config.CronCalcMinPositionTimeout) * time.Millisecond
@@ -125,14 +124,6 @@ func (db *db) CompareToServerPosition(last, current *ToServer, lastIsNotCalcPosi
 }
 
 func (db *db) CompareToServerPositionAndReturnLess(last, current *ToServer) (lastSuccessToServerInfo *ToServer) {
-	/*
-		if last == nil || last.LastSuccessBinlog == nil || last.LastSuccessBinlog.EventID == 0 {
-			return current
-		}
-		if current == nil || current.LastSuccessBinlog == nil || current.LastSuccessBinlog.EventID == 0 {
-			return last
-		}
-	*/
 	if last.LastSuccessBinlog.EventID < current.LastSuccessBinlog.EventID {
 		return last
 	}
@@ -140,14 +131,7 @@ func (db *db) CompareToServerPositionAndReturnLess(last, current *ToServer) (las
 }
 
 func (db *db) CompareToServerPositionAndReturnGreater(last, current *ToServer) (lastSuccessToServerInfo *ToServer) {
-	/*
-		if last == nil || last.LastSuccessBinlog == nil {
-			return current
-		}
-		if current == nil || current.LastSuccessBinlog == nil {
-			return last
-		}
-	*/
+
 	if last.LastSuccessBinlog.EventID >= current.LastSuccessBinlog.EventID {
 		return last
 	}

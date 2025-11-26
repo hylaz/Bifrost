@@ -12,17 +12,17 @@ import (
 
 const VERSION = "v1.1.1"
 
-type MyConn struct{}
+type RedisDriver struct{}
 
 var ctx = context.Background()
 
-func (MyConn *MyConn) Open(uri string) (driver.XdbDriver, error) {
+func (driver *RedisDriver) Open(uri string) (driver.XdbDriver, error) {
 	return newConn(uri)
 }
 
-func newConn(uri string) (*Conn, error) {
+func newConn(uri string) (*RedisConn, error) {
 	pwd, network, uri, database := getUriParam(uri)
-	f := &Conn{
+	f := &RedisConn{
 		pwd:      pwd,
 		network:  network,
 		database: database,
@@ -63,7 +63,7 @@ func getUriParam(uri string) (pwd string, network string, url string, database i
 	return
 }
 
-type Conn struct {
+type RedisConn struct {
 	Uri      string
 	pwd      string
 	database int
@@ -73,100 +73,100 @@ type Conn struct {
 	err      error
 }
 
-func (This *Conn) Connect() error {
-	if This.database < 0 || This.database > 16 {
-		This.err = fmt.Errorf("database must be in 0 and 16")
-		return This.err
+func (redisConn *RedisConn) Connect() error {
+	if redisConn.database < 0 || redisConn.database > 16 {
+		redisConn.err = fmt.Errorf("database must be in 0 and 16")
+		return redisConn.err
 	}
-	if This.network != "tcp" {
-		This.err = fmt.Errorf("network must be tcp")
-		return This.err
+	if redisConn.network != "tcp" {
+		redisConn.err = fmt.Errorf("network must be tcp")
+		return redisConn.err
 	}
 	universalClient := redis.NewUniversalClient(&redis.UniversalOptions{
-		Addrs:    strings.SplitN(This.Uri, ",", -1),
-		Password: This.pwd,
-		DB:       This.database,
+		Addrs:    strings.SplitN(redisConn.Uri, ",", -1),
+		Password: redisConn.pwd,
+		DB:       redisConn.database,
 		PoolSize: 4096,
 	})
 
-	_, This.err = universalClient.Ping(ctx).Result()
-	if This.err != nil {
-		This.status = ""
-		return This.err
+	_, redisConn.err = universalClient.Ping(ctx).Result()
+	if redisConn.err != nil {
+		redisConn.status = ""
+		return redisConn.err
 	}
 
-	This.conn = universalClient
+	redisConn.conn = universalClient
 
-	if This.conn == nil {
-		This.err = fmt.Errorf("redis connect error")
-		This.status = ""
-		return This.err
+	if redisConn.conn == nil {
+		redisConn.err = fmt.Errorf("redis connect error")
+		redisConn.status = ""
+		return redisConn.err
 	} else {
-		This.err = nil
-		return This.err
+		redisConn.err = nil
+		return redisConn.err
 	}
 }
 
-func (This *Conn) Close() error {
-	if This.conn != nil {
-		This.conn.Close()
+func (redisConn *RedisConn) Close() error {
+	if redisConn.conn != nil {
+		redisConn.conn.Close()
 	}
-	This.conn = nil
+	redisConn.conn = nil
 	return nil
 }
 
-func (This *Conn) InitConn() {
-	if This.conn == nil {
-		This.Connect()
+func (redisConn *RedisConn) InitConn() {
+	if redisConn.conn == nil {
+		redisConn.Connect()
 	}
 }
 
-func (This *Conn) GetKeyVal(key []byte) ([]byte, error) {
-	This.InitConn()
-	f := This.conn.Get(ctx, string(key))
+func (redisConn *RedisConn) GetKeyVal(key []byte) ([]byte, error) {
+	redisConn.InitConn()
+	f := redisConn.conn.Get(ctx, string(key))
 	s, err := f.Bytes()
 	if err != nil {
 		if err.Error() == "redis: nil" {
 			return nil, nil
 		}
-		This.Close()
+		redisConn.Close()
 		return nil, err
 	}
 	return s, nil
 }
 
-func (This *Conn) PutKeyVal(key []byte, val []byte) error {
-	This.InitConn()
-	err := This.conn.Set(ctx, string(key), string(val), time.Duration(0)).Err()
+func (redisConn *RedisConn) PutKeyVal(key []byte, val []byte) error {
+	redisConn.InitConn()
+	err := redisConn.conn.Set(ctx, string(key), string(val), time.Duration(0)).Err()
 	if err != nil {
-		This.Close()
+		redisConn.Close()
 		return err
 	}
 	return nil
 }
 
-func (This *Conn) DelKeyVal(key []byte) error {
-	This.InitConn()
-	err := This.conn.Del(ctx, string(key)).Err()
+func (redisConn *RedisConn) DelKeyVal(key []byte) error {
+	redisConn.InitConn()
+	err := redisConn.conn.Del(ctx, string(key)).Err()
 	if err != nil {
 		if err.Error() != "redis: nil" {
-			This.Close()
+			redisConn.Close()
 			return err
 		}
 	}
 	return nil
 }
 
-func (This *Conn) GetListByKeyPrefix(key []byte) ([]driver.ListValue, error) {
-	This.InitConn()
+func (redisConn *RedisConn) GetListByKeyPrefix(key []byte) ([]driver.ListValue, error) {
+	redisConn.InitConn()
 	data := make([]driver.ListValue, 0)
-	list, err := This.conn.Keys(ctx, string(key)+"*").Result()
+	list, err := redisConn.conn.Keys(ctx, string(key)+"*").Result()
 	if err != nil {
-		This.Close()
+		redisConn.Close()
 		return data, err
 	}
 	for _, vk := range list {
-		val, err := This.GetKeyVal([]byte(vk))
+		val, err := redisConn.GetKeyVal([]byte(vk))
 		if err != nil {
 			return data, err
 		}

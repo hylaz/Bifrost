@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"strings"
-	"time"
-
 	"github.com/brokercap/Bifrost/config"
 	"github.com/brokercap/Bifrost/server/storage"
+	"github.com/sirupsen/logrus"
+	"strings"
+	"time"
 )
 
 const USER_PREFIX string = "bifrost:userList:"
@@ -55,7 +54,7 @@ func InitUser() {
 			b, _ := json.Marshal(User)
 			err := storage.PutKeyVal([]byte(USER_PREFIX+Name), b)
 			if err != nil {
-				log.Println("InitUser error:", err, " user:", User)
+				logrus.Println("InitUser error:", err, " user:", User)
 			}
 		}
 	}()
@@ -68,7 +67,7 @@ func RecoveryUser(content *json.RawMessage) {
 	var data []*UserInfo
 	errors := json.Unmarshal(*content, &data)
 	if errors != nil {
-		log.Println("recovery user content errors;", errors, " content:", content)
+		logrus.Println("recovery user content errors;", errors, " content:", content)
 		return
 	}
 

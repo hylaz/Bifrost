@@ -12,7 +12,7 @@ func getLogFile() string {
 }
 
 func appendLoginLog(format string, v ...interface{}) {
-	f, err := os.OpenFile(getLogFile(), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0700) //打开文件
+	f, err := os.OpenFile(getLogFile(), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0755) //打开文件
 	if err != nil {
 		log.Println("open login file error:", err, getLogFile())
 		return

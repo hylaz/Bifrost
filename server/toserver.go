@@ -5,7 +5,7 @@ import (
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	pluginStorage "github.com/brokercap/Bifrost/plugin/storage"
 	"github.com/brokercap/Bifrost/server/filequeue"
-	"log"
+	"github.com/sirupsen/logrus"
 	"sync"
 )
 
@@ -102,7 +102,7 @@ func (db *db) AddTableToServer(schemaName string, tableName string, toserver *To
 	if len(db.tableMap[key].ToServerList) == 1 && db.inputDriverObj != nil {
 		db.AddReplicateDoDb(schemaName, tableName, false)
 	}
-	log.Println("AddTableToServer", db.Name, schemaName, tableName, toserver)
+	logrus.Println("AddTableToServer", db.Name, schemaName, tableName, toserver)
 	return true, toserver.ToServerID
 }
 
@@ -147,7 +147,7 @@ func (db *db) DelTableToServer(schemaName string, tableName string, ToServerID i
 	if len(db.tableMap[key].ToServerList) == 0 && db.inputDriverObj != nil {
 		db.DelReplicateDoDb(schemaName, tableName, false)
 	}
-	log.Println("DelTableToServer", db.Name, schemaName, tableName, "toServerInfo:", toServerInfo)
+	logrus.Println("DelTableToServer", db.Name, schemaName, tableName, "toServerInfo:", toServerInfo)
 
 	//将文件队列的路径也相应的删除掉
 	filequeue.Delete(GetFileQueue(db.Name, schemaName, tableName, fmt.Sprint(ToServerID)))

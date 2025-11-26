@@ -6,8 +6,8 @@ import (
 	"github.com/brokercap/Bifrost/plugin"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/brokercap/Bifrost/server/warning"
+	"github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -18,12 +18,12 @@ func (This *ToServer) Stop() {
 	This.Lock()
 	defer This.Unlock()
 	if This.Status == "" {
-		log.Println("ToServer ", *This.Key, This.ToServerKey, This.ToServerID, " stopped")
+		logrus.Println("ToServer ", *This.Key, This.ToServerKey, This.ToServerID, " stopped")
 		This.Status = STOPPED
 		return
 	}
 	if This.Status == RUNNING {
-		log.Println("ToServer ", *This.Key, This.ToServerKey, This.ToServerID, " stopping")
+		logrus.Println("ToServer ", *This.Key, This.ToServerKey, This.ToServerID, " stopping")
 		This.Status = STOPPING
 		return
 	}
@@ -39,7 +39,7 @@ func (This *ToServer) Start() {
 		} else {
 			This.statusChan <- true
 		}
-		log.Println("ToServer ", *This.Key, This.ToServerKey, This.ToServerID, " start")
+		logrus.Println("ToServer ", *This.Key, This.ToServerKey, This.ToServerID, " start")
 	}
 }
 
@@ -67,10 +67,10 @@ func (This *ToServer) consume_to_server(db *db, SchemaName string, TableName str
 	var ThreadCountDecrDone bool = false
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println(db.Name, This.Notes, "toServerKey:", *This.Key, "MyConsumerId:", MyConsumerId, "SchemaName:", SchemaName, "TableName:", TableName, This.PluginName, This.ToServerKey, "ToServer consume_to_server over;err:", err, "debug", string(debug.Stack()))
+			logrus.Println(db.Name, This.Notes, "toServerKey:", *This.Key, "MyConsumerId:", MyConsumerId, "SchemaName:", SchemaName, "TableName:", TableName, This.PluginName, This.ToServerKey, "ToServer consume_to_server over;err:", err, "debug", string(debug.Stack()))
 			return
 		} else {
-			log.Println(db.Name, This.Notes, "toServerKey:", *This.Key, "MyConsumerId:", MyConsumerId, "SchemaName:", SchemaName, "TableName:", TableName, This.PluginName, This.ToServerKey, "ToServer consume_to_server over")
+			logrus.Println(db.Name, This.Notes, "toServerKey:", *This.Key, "MyConsumerId:", MyConsumerId, "SchemaName:", SchemaName, "TableName:", TableName, This.PluginName, This.ToServerKey, "ToServer consume_to_server over")
 		}
 		This.Lock()
 		if ThreadCountDecrDone == false {
@@ -83,7 +83,7 @@ func (This *ToServer) consume_to_server(db *db, SchemaName string, TableName str
 		}
 		This.Unlock()
 	}()
-	log.Println(db.Name, This.Notes, "toServerKey:", *This.Key, "MyConsumerId:", MyConsumerId, "SchemaName:", SchemaName, "TableName:", TableName, This.PluginName, This.ToServerKey, "ToServer consume_to_server  start")
+	logrus.Println(db.Name, This.Notes, "toServerKey:", *This.Key, "MyConsumerId:", MyConsumerId, "SchemaName:", SchemaName, "TableName:", TableName, This.PluginName, This.ToServerKey, "ToServer consume_to_server  start")
 	c := This.ToServerChan.To
 	This.Lock()
 	if This.Status == DEFAULT {
@@ -107,7 +107,7 @@ func (This *ToServer) consume_to_server(db *db, SchemaName string, TableName str
 				if This.Status == STOPPING {
 					//检测是否需要在暂停操作，如果是暂停操作，则修改为已暂停状态，并且等待开启
 					This.Status = STOPPED
-					log.Println("ToServer ", *This.Key, This.ToServerKey, This.ToServerID, " stopped")
+					logrus.Println("ToServer ", *This.Key, This.ToServerKey, This.ToServerID, " stopped")
 				}
 				This.Unlock()
 				select {
@@ -198,20 +198,20 @@ func (This *ToServer) consume_to_server(db *db, SchemaName string, TableName str
 		}
 		//假如 最后成功的位点，大于文件中加载的位点，则将所有待从文件中的数量  ack 掉
 		if LastSuccessData.BinlogFileNum > lastFromFileEndData.BinlogFileNum {
-			//log.Println("file ackn:",unack," fileTotalCount:",fileTotalCount)
+			//logrus.Println("file ackn:",unack," fileTotalCount:",fileTotalCount)
 			This.fileQueueObj.Ack(unack)
 			unack = 0
 			return
 		}
 		if LastSuccessData.BinlogFileNum == lastFromFileEndData.BinlogFileNum {
 			if LastSuccessData.BinlogPosition >= lastFromFileEndData.BinlogPosition {
-				//log.Println("file ackn2:",unack," and unack:",unack," fileTotalCount:",fileTotalCount)
+				//logrus.Println("file ackn2:",unack," and unack:",unack," fileTotalCount:",fileTotalCount)
 				This.fileQueueObj.Ack(unack)
 				unack = 0
 			} else {
 				This.fileQueueObj.Ack(1)
 				unack--
-				//log.Println("file ack1:",1," and unack:",unack," fileTotalCount:",fileTotalCount)
+				//logrus.Println("file ack1:",1," and unack:",unack," fileTotalCount:",fileTotalCount)
 			}
 		} else {
 			return
@@ -300,18 +300,18 @@ func (This *ToServer) consume_to_server(db *db, SchemaName string, TableName str
 			queueVariableSize := config.ToServerQueueSize - 1
 			if queueVariableSize > 0 {
 				This.InitFileQueue(db.Name, SchemaName, TableName)
-				//log.Println("file ack2:",unack," fileTotalCount:",fileTotalCount)
+				//logrus.Println("file ack2:",unack," fileTotalCount:",fileTotalCount)
 				This.fileQueueObj.Ack(unack)
 				tmpUnack = 0
 				unack = 0
-				log.Println(db.Name, SchemaName, TableName, This.PluginName, This.ToServerKey, "ToServer consume_to_server start PopFileQueue")
+				logrus.Println(db.Name, SchemaName, TableName, This.PluginName, This.ToServerKey, "ToServer consume_to_server start PopFileQueue")
 				var err error
 				for i := 0; i < queueVariableSize; i++ {
 					var data0 *pluginDriver.PluginDataType
 					data0, err = This.PopFileQueue()
 					if err != nil && err != io.EOF {
 						doWarningFun(warning.WARNINGERROR, "PluginName:"+This.PluginName+";ToServerKey:"+This.ToServerKey+";dbName:"+db.Name+";SchemaName:"+SchemaName+";TableName:"+TableName+"; PopFileQueue err:"+err.Error())
-						log.Println(db.Name, SchemaName, TableName, ";ToServerKey:"+This.ToServerKey, " PopFileQueue err:", err, " restart Bifrost please!")
+						logrus.Println(db.Name, SchemaName, TableName, ";ToServerKey:"+This.ToServerKey, " PopFileQueue err:", err, " restart Bifrost please!")
 						panic("PluginName:" + This.PluginName + ";ToServerKey:" + This.ToServerKey + ";dbName:" + db.Name + ";SchemaName:" + SchemaName + ";TableName:" + TableName + "; PopFileQueue err:" + err.Error())
 					}
 					if data0 == nil && err == nil {
@@ -323,7 +323,7 @@ func (This *ToServer) consume_to_server(db *db, SchemaName string, TableName str
 					} else {
 						/*
 							if i == 0{
-								log.Println("PopFileQueue first: ",*data0)
+								logrus.Println("PopFileQueue first: ",*data0)
 							}
 						*/
 						// 这里为什么要判断一下位点，是因为文件队列是要整个文件的数据都被从加载到内存后才会 删除文件
@@ -455,7 +455,7 @@ func (This *ToServer) consume_to_server(db *db, SchemaName string, TableName str
 			}
 			if noData == false {
 				noData = true
-				log.Println("consume_to_server:", This.Notes, "toServerKey:", *This.Key, "MyConsumerId:", MyConsumerId, This.PluginName, This.ToServerKey, This.ToServerID, " start no data")
+				logrus.Println("consume_to_server:", This.Notes, "toServerKey:", *This.Key, "MyConsumerId:", MyConsumerId, This.PluginName, This.ToServerKey, This.ToServerID, " start no data")
 			}
 			fileAck()
 			if LastSuccessData == nil && errs == nil {
@@ -593,7 +593,7 @@ func (This *ToServer) timeOutCommit(MyConsumerId int) (LastSuccessCommitData *pl
 	defer func() {
 		if err2 := recover(); err2 != nil {
 			err = fmt.Errorf("ToServer:%s Commit Debug Err:%s", This.ToServerKey, string(debug.Stack()))
-			log.Println(This.ToServerKey, "sendToServer err:", err)
+			logrus.Println(This.ToServerKey, "sendToServer err:", err)
 		}
 	}()
 
@@ -613,7 +613,7 @@ func (This *ToServer) SkipBinlog(MyConsumerId int, SkipErrData *pluginDriver.Plu
 	defer func() {
 		if err2 := recover(); err2 != nil {
 			err = fmt.Errorf("ToServer:%s Commit Debug Err:%s", This.ToServerKey, string(debug.Stack()))
-			log.Println(This.ToServerKey, "sendToServer err:", err)
+			logrus.Println(This.ToServerKey, "sendToServer err:", err)
 		}
 	}()
 
@@ -630,7 +630,7 @@ func (This *ToServer) sendToServer(paramData *pluginDriver.PluginDataType, MyCon
 	defer func() {
 		if err2 := recover(); err2 != nil {
 			err = fmt.Errorf("sendToServer:%s Commit Debug Err:%s", This.ToServerKey, string(debug.Stack()))
-			log.Println(This.ToServerKey, err2, err)
+			logrus.Println(This.ToServerKey, err2, err)
 		}
 	}()
 
