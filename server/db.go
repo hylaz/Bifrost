@@ -471,11 +471,6 @@ func (db *db) Start() error {
 	return nil
 }
 
-/*
-InitInputDriver 不进行加锁，是把加锁动作放到外层去做，因为Start方法每次启动都需要强制启动一个新的
-并且其GetCurrentPosition也有可能会需要初始化操作
-*/
-
 func (db *db) InitInputDriver() {
 	inputInfo := inputDriver.InputInfo{
 		DbName:         db.Name,
@@ -484,14 +479,14 @@ func (db *db) InitInputDriver() {
 		BinlogFileName: db.binlogDumpFileName,
 		BinlogPostion:  db.binlogDumpPosition,
 		IsGTID:         db.isGtid,
-
-		ServerId:    db.serverId,
-		MaxFileName: db.maxBinlogDumpFileName,
-		MaxPosition: db.maxBinlogDumpPosition,
+		ServerId:       db.serverId,
+		MaxFileName:    db.maxBinlogDumpFileName,
+		MaxPosition:    db.maxBinlogDumpPosition,
 	}
 	if !db.isGtid {
 		inputInfo.GTID = ""
 	}
+
 	db.inputStatusChan = make(chan *inputDriver.PluginStatus, 10)
 	db.inputDriverObj = inputDriver.Open(db.InputType, inputInfo)
 	db.inputDriverObj.SetCallback(db.Callback)
@@ -500,7 +495,6 @@ func (db *db) InitInputDriver() {
 		db.AddReplicateDoDb(schemaName, TableName, false)
 	}
 	db.inputDriverObj.SetEventID(db.lastEventID)
-
 }
 
 func (db *db) Stop() bool {

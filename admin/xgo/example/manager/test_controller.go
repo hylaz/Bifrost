@@ -2,8 +2,7 @@ package manager
 
 import (
 	"github.com/brokercap/Bifrost/admin/xgo"
-
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
 type TestController struct {
@@ -11,14 +10,14 @@ type TestController struct {
 }
 
 func (c *TestController) Prepare() {
-	log.Println("Prepare ..")
+	logrus.Println("Prepare ..")
 }
 
 func (c *TestController) Finish() {
-	log.Println("Finish ..")
+	logrus.Println("Finish ..")
 }
 
 func (c *TestController) Post() {
-	log.Println("Post ..")
+	logrus.Println("Post ..")
 	c.Data["data"] = "success"
 }

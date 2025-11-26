@@ -1,27 +1,12 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package server
 
 import (
-	"log"
-	"time"
-
 	outputDriver "github.com/brokercap/Bifrost/plugin/driver"
+	"github.com/sirupsen/logrus"
+	"time"
 )
 
+// Callback 回掉函数
 func (db *db) Callback(data *outputDriver.PluginDataType) {
 	switch data.EventType {
 	case "sql":
@@ -30,7 +15,7 @@ func (db *db) Callback(data *outputDriver.PluginDataType) {
 			db.CallbackDoCommit(data)
 			return
 		case "BEGIN":
-			db.lastTransactionTableMap = make(map[string]map[string]bool, 0)
+			db.lastTransactionTableMap = make(map[string]map[string]bool, 4)
 			return
 		default:
 			break
@@ -41,9 +26,11 @@ func (db *db) Callback(data *outputDriver.PluginDataType) {
 	default:
 		break
 	}
+
 	if db.Callback0(data) == false {
 		return
 	}
+
 	if _, ok := db.lastTransactionTableMap[data.SchemaName]; !ok {
 		db.lastTransactionTableMap[data.SchemaName] = make(map[string]bool, 0)
 	}
@@ -86,6 +73,7 @@ func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {
 		ChannelKey = t.ChannelKey
 		return true
 	}
+
 	//优先判断 全局 *.* 绑定的 channel
 	//再判断 schema.* 绑定的 channel
 	//最后再判断 schema.table 绑定的 channel
@@ -103,10 +91,10 @@ func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {
 		if b {
 			break
 		}
-		//假如没一个获取成功的,直接退出函数
 		return
 	}
-	var i int = 0
+
+	var i = 0
 	var c *Channel
 	for {
 		if _, ok := db.channelMap[ChannelKey]; !ok {
@@ -120,8 +108,9 @@ func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {
 		}
 		if c.Status != RUNNING {
 			c.RUnlock()
+
 			if i%600 == 0 {
-				log.Printf("ChannelKey:%T , status:%s , data:%T \r\n , ", ChannelKey, c.Status, data)
+				logrus.Printf("ChannelKey:%T , status:%s , data:%T , ", ChannelKey, c.Status, data)
 			}
 			time.Sleep(1 * time.Second)
 			i++
@@ -130,11 +119,12 @@ func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {
 			break
 		}
 	}
+
 	chanName := c.GetChannel()
 	if chanName != nil {
 		chanName <- data
 	} else {
-		log.Printf("SchemaName:%s, TableName:%s , ChannelKey:%T chan is nil , data:%T \r\n , ", data.AliasSchemaName, data.AliasTableName, ChannelKey, data)
+		logrus.Printf("SchemaName:%s, TableName:%s , ChannelKey:%T chan is nil , data:%T \r\n , ", data.AliasSchemaName, data.AliasTableName, ChannelKey, data)
 	}
 	return
 }

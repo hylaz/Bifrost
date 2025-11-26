@@ -1,24 +1,10 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package server
 
 import (
 	"github.com/brokercap/Bifrost/config"
 	outputDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/brokercap/Bifrost/server/count"
+	"github.com/sirupsen/logrus"
 	"log"
 	"runtime/debug"
 	"sync"
@@ -28,9 +14,9 @@ type Channel struct {
 	sync.RWMutex
 	Name             string
 	chanName         chan *outputDriver.PluginDataType
-	MaxThreadNum     int // 消费通道的最大线程数
+	MaxThreadNum     int
 	CurrentThreadNum int
-	Status           StatusFlag //stop ,starting,running,wait
+	Status           StatusFlag
 	db               *db
 	countChan        chan *count.FlowCount
 }
@@ -70,26 +56,26 @@ func DelChannel(name string, channelID int) bool {
 	return true
 }
 
-func (Channel *Channel) SetFlowCountChan(flowChan chan *count.FlowCount) {
-	Channel.countChan = flowChan
+func (channel *Channel) SetFlowCountChan(flowChan chan *count.FlowCount) {
+	channel.countChan = flowChan
 }
 
-func (Channel *Channel) GetCountChan() chan *count.FlowCount {
-	return Channel.countChan
+func (channel *Channel) GetCountChan() chan *count.FlowCount {
+	return channel.countChan
 }
 
-func (Channel *Channel) Start() chan *outputDriver.PluginDataType {
-	Channel.Lock()
-	defer Channel.Unlock()
-	log.Println(Channel.db.Name, "Channel:", Channel.Name, "start")
-	if Channel.Status == RUNNING {
-		return Channel.chanName
+func (channel *Channel) Start() chan *outputDriver.PluginDataType {
+	channel.Lock()
+	defer channel.Unlock()
+	logrus.Println(channel.db.Name, "Channel:", channel.Name, "start")
+	if channel.Status == RUNNING {
+		return channel.chanName
 	}
-	Channel.Status = RUNNING
-	for i := 0; i < Channel.MaxThreadNum; i++ {
-		go Channel.channelConsume()
+	channel.Status = RUNNING
+	for i := 0; i < channel.MaxThreadNum; i++ {
+		go channel.channelConsume()
 	}
-	return Channel.chanName
+	return channel.chanName
 }
 
 func (Channel *Channel) GetChannel() chan *outputDriver.PluginDataType {
@@ -99,40 +85,40 @@ func (Channel *Channel) GetChannel() chan *outputDriver.PluginDataType {
 func (Channel *Channel) Stop() {
 	Channel.Lock()
 	defer Channel.Unlock()
-	log.Println(Channel.db.Name, "Channel:", Channel.Name, "stop")
+	logrus.Println(Channel.db.Name, "Channel:", Channel.Name, "stop")
 	Channel.Status = STOPPED
 }
 
 func (Channel *Channel) Close() {
 	Channel.Lock()
 	defer Channel.Unlock()
-	log.Println(Channel.db.Name, "Channel:", Channel.Name, "close")
+	logrus.Println(Channel.db.Name, "Channel:", Channel.Name, "close")
 	Channel.Status = CLOSED
 }
 
-func (This *Channel) SetChannelMaxThreadNum(n int) {
-	This.Lock()
-	defer This.Unlock()
-	This.MaxThreadNum = n
+func (channel *Channel) SetChannelMaxThreadNum(n int) {
+	channel.Lock()
+	defer channel.Unlock()
+	channel.MaxThreadNum = n
 }
 
-func (This *Channel) GetChannelMaxThreadNum() int {
-	This.Lock()
-	defer This.Unlock()
-	return This.MaxThreadNum
+func (channel *Channel) GetChannelMaxThreadNum() int {
+	channel.Lock()
+	defer channel.Unlock()
+	return channel.MaxThreadNum
 }
 
-func (c *Channel) channelConsume() {
-	c.Lock()
-	c.CurrentThreadNum++
-	c.Unlock()
+func (channel *Channel) channelConsume() {
+	channel.Lock()
+	channel.CurrentThreadNum++
+	channel.Unlock()
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("channelConsume err:", err, string(debug.Stack()))
-			c.Lock()
-			c.CurrentThreadNum--
-			c.Unlock()
+			logrus.Println("channelConsume err:", err, string(debug.Stack()))
+			channel.Lock()
+			channel.CurrentThreadNum--
+			channel.Unlock()
 		}
 	}()
-	NewConsumeChannel(c).consumeChannel()
+	NewConsumeChannel(channel).consumeChannel()
 }
