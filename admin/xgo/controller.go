@@ -3,8 +3,8 @@ package xgo
 import (
 	"encoding/json"
 	"errors"
+	"github.com/sirupsen/logrus"
 	"html/template"
-	"log"
 	"strings"
 )
 
@@ -154,7 +154,7 @@ func (c *Controller) NormalStop() {
 			var err error
 			c.Template, err = template.ParseFiles(c.tplArr...)
 			if err != nil {
-				log.Println("err:", err)
+				logrus.Println("err:", err)
 				panic(err.Error())
 			}
 		}

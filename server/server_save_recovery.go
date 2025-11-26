@@ -7,7 +7,7 @@ import (
 	"github.com/brokercap/Bifrost/server/storage"
 	"github.com/brokercap/Bifrost/server/user"
 	"github.com/brokercap/Bifrost/server/warning"
-	"log"
+	"github.com/sirupsen/logrus"
 	"sync"
 	"time"
 )
@@ -47,7 +47,7 @@ func DoRecoverySnapshotData() {
 	var data recovery
 	errors := json.Unmarshal(fd, &data)
 	if errors != nil {
-		log.Printf("recovery error:%s, data:%s \r\n", errors, string(fd))
+		logrus.Printf("recovery error:%s, data:%s \r\n", errors, string(fd))
 		return
 	}
 	setServerStartTime(data.StartTime)
@@ -72,7 +72,7 @@ func GetSnapshotData() ([]byte, error) {
 	defer func() {
 		l.Unlock()
 		if err := recover(); err != nil {
-			log.Println(err)
+			logrus.Println(err)
 		}
 	}()
 	data := recoveryDataSturct{
@@ -92,7 +92,7 @@ func GetSnapshotData2() ([]byte, error) {
 	defer func() {
 		l.Unlock()
 		if err := recover(); err != nil {
-			log.Println(err)
+			logrus.Println(err)
 		}
 	}()
 	data := recoveryDataSturct{
@@ -126,7 +126,7 @@ func DoRecoveryByBackupData(fileContent string) {
 	var data recovery
 	errors := json.Unmarshal([]byte(fileContent), &data)
 	if errors != nil {
-		log.Printf("recovery error:%s, data:%s \r\n", errors, fileContent)
+		logrus.Printf("recovery error:%s, data:%s \r\n", errors, fileContent)
 		return
 	}
 	setServerStartTime(data.StartTime)

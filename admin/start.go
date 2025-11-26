@@ -5,7 +5,7 @@ import (
 	_ "github.com/brokercap/Bifrost/admin/router"
 	"github.com/brokercap/Bifrost/admin/xgo"
 	"github.com/brokercap/Bifrost/config"
-	"log"
+	"github.com/sirupsen/logrus"
 	"runtime/debug"
 )
 
@@ -28,6 +28,6 @@ func Start() {
 		err = xgo.Start(config.Listen)
 	}
 	if err != nil {
-		log.Println("Manager Start Err:", err)
+		logrus.Println("Manager Start Err:", err)
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/brokercap/Bifrost/config"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/brokercap/Bifrost/server/count"
-	"log"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,7 +35,7 @@ type ToServerChan struct {
 	To chan *pluginDriver.PluginDataType
 }
 
-type consume_channel_obj struct {
+type ConsumeChannel struct {
 	sync.RWMutex
 	db         *db
 	c          *Channel
@@ -43,20 +43,20 @@ type consume_channel_obj struct {
 	TableName  string
 }
 
-func NewConsumeChannel(c *Channel) *consume_channel_obj {
-	return &consume_channel_obj{
+func NewConsumeChannel(c *Channel) *ConsumeChannel {
+	return &ConsumeChannel{
 		db: c.db,
 		c:  c,
 	}
 }
 
-func (This *consume_channel_obj) checkChannleStatus() {
-	if This.c.Status == CLOSED {
+func (consume *ConsumeChannel) checkChannleStatus() {
+	if consume.c.Status == CLOSED {
 		panic("channel closed")
 	}
 }
 
-func (This *consume_channel_obj) sendToServerResult(ToServerInfo *ToServer, pluginData *pluginDriver.PluginDataType) {
+func (consume *ConsumeChannel) sendToServerResult(ToServerInfo *ToServer, pluginData *pluginDriver.PluginDataType) {
 	ToServerInfo.Lock()
 	status := ToServerInfo.Status
 	FileQueueStatus := ToServerInfo.FileQueueStatus
@@ -85,15 +85,15 @@ func (This *consume_channel_obj) sendToServerResult(ToServerInfo *ToServer, plug
 		ToServerInfo.ToServerChan = &ToServerChan{
 			To: make(chan *pluginDriver.PluginDataType, config.ToServerQueueSize),
 		}
-		go ToServerInfo.consume_to_server(This.db, pluginData.SchemaName, pluginData.TableName)
+		go ToServerInfo.consume_to_server(consume.db, pluginData.SchemaName, pluginData.TableName)
 	}
 	ToServerInfo.Unlock()
 	if ToServerInfo.LastBinlogKey == nil {
-		ToServerInfo.LastBinlogKey = getToServerLastBinlogkey(This.db, ToServerInfo)
+		ToServerInfo.LastBinlogKey = getToServerLastBinlogkey(consume.db, ToServerInfo)
 	}
 	saveBinlogPositionByCache(ToServerInfo.LastBinlogKey, lastQueueBinlog)
 	if FileQueueStatus {
-		ToServerInfo.InitFileQueue(This.db.Name, pluginData.SchemaName, pluginData.TableName)
+		ToServerInfo.InitFileQueue(consume.db.Name, pluginData.SchemaName, pluginData.TableName)
 		ToServerInfo.AppendToFileQueue(pluginData)
 		return
 	}
@@ -127,7 +127,7 @@ func (This *consume_channel_obj) sendToServerResult(ToServerInfo *ToServer, plug
 		case <-timer.C:
 			ToServerInfo.Lock()
 			defer ToServerInfo.Unlock()
-			ToServerInfo.InitFileQueue(This.db.Name, This.SchemaName, This.TableName)
+			ToServerInfo.InitFileQueue(consume.db.Name, consume.SchemaName, consume.TableName)
 			ToServerInfo.AppendToFileQueue(pluginData)
 			ToServerInfo.FileQueueStatus = true
 			//log.Println("start FileQueueStatus = true;",*pluginData)
@@ -142,7 +142,7 @@ func (This *consume_channel_obj) sendToServerResult(ToServerInfo *ToServer, plug
 
 }
 
-func (This *consume_channel_obj) transferToPluginData(data *mysql.EventReslut) (pluginData *pluginDriver.PluginDataType) {
+func (consume *ConsumeChannel) transferToPluginData(data *mysql.EventReslut) (pluginData *pluginDriver.PluginDataType) {
 	i := strings.IndexAny(data.BinlogFileName, ".")
 	intString := data.BinlogFileName[i+1:]
 	BinlogFileNum, _ := strconv.Atoi(intString)
@@ -163,13 +163,13 @@ func (This *consume_channel_obj) transferToPluginData(data *mysql.EventReslut) (
 	return
 }
 
-func (This *consume_channel_obj) consumeChannel() {
-	c := This.c
+func (consume *ConsumeChannel) consumeChannel() {
+	c := consume.c
 	var pluginData *pluginDriver.PluginDataType
-	log.Println("channel", c.Name, " consume_channel start")
+	logrus.Println("channel", c.Name, " consume_channel start")
 	timer := time.NewTimer(5 * time.Second)
 	defer func() {
-		log.Println("channel", c.Name, " consume_channel over; CurrentThreadNum:", c.CurrentThreadNum)
+		logrus.Println("channel", c.Name, " consume_channel over; CurrentThreadNum:", c.CurrentThreadNum)
 		timer.Stop()
 	}()
 	var key string
@@ -178,11 +178,11 @@ func (This *consume_channel_obj) consumeChannel() {
 	var EventSize int64 = 0
 	for {
 		select {
-		case pluginData = <-This.c.chanName:
-			if This.db.killStatus == 1 {
+		case pluginData = <-consume.c.chanName:
+			if consume.db.killStatus == 1 {
 				return
 			}
-			This.checkChannleStatus()
+			consume.checkChannleStatus()
 
 			switch pluginData.EventType {
 			case "update":
@@ -200,14 +200,14 @@ func (This *consume_channel_obj) consumeChannel() {
 			key = GetSchemaAndTableJoin(pluginData.AliasSchemaName, pluginData.AliasTableName)
 			AllTableKey = GetSchemaAndTableJoin(pluginData.AliasSchemaName, "*")
 			//pluginData := This.transferToPluginData(&data)
-			This.SchemaName, This.TableName = pluginData.AliasSchemaName, pluginData.AliasTableName
-			This.sendToServerList(key, pluginData, countNum, EventSize)
-			This.SchemaName, This.TableName = pluginData.AliasSchemaName, "*"
-			This.sendToServerList(AllTableKey, pluginData, countNum, EventSize)
-			This.SchemaName, This.TableName = "*", "*"
-			This.sendToServerList(AllSchemaAndTablekey, pluginData, countNum, EventSize)
+			consume.SchemaName, consume.TableName = pluginData.AliasSchemaName, pluginData.AliasTableName
+			consume.sendToServerList(key, pluginData, countNum, EventSize)
+			consume.SchemaName, consume.TableName = pluginData.AliasSchemaName, "*"
+			consume.sendToServerList(AllTableKey, pluginData, countNum, EventSize)
+			consume.SchemaName, consume.TableName = "*", "*"
+			consume.sendToServerList(AllSchemaAndTablekey, pluginData, countNum, EventSize)
 
-			if This.db.killStatus == 1 {
+			if consume.db.killStatus == 1 {
 				return
 			}
 
@@ -229,33 +229,33 @@ func (This *consume_channel_obj) consumeChannel() {
 	}
 }
 
-func (This *consume_channel_obj) checkIgnoreTable(t *Table, TableName string) bool {
-	This.db.RLock()
+func (consume *ConsumeChannel) checkIgnoreTable(t *Table, TableName string) bool {
+	consume.db.RLock()
 	if len(t.doTableMap) > 0 {
 		if _, ok := t.doTableMap[TableName]; ok {
-			This.db.RUnlock()
+			consume.db.RUnlock()
 			return false
 		}
-		This.db.RUnlock()
+		consume.db.RUnlock()
 		return true
 	}
 	if _, ok := t.ignoreTableMap[TableName]; ok {
-		This.db.RUnlock()
+		consume.db.RUnlock()
 		return true
 	}
-	This.db.RUnlock()
+	consume.db.RUnlock()
 	return false
 }
 
-func (This *consume_channel_obj) sendToServerList(key string, pluginData *pluginDriver.PluginDataType, countNum int64, EventSize int64) {
-	t := This.db.GetTableByKey(key)
+func (consume *ConsumeChannel) sendToServerList(key string, pluginData *pluginDriver.PluginDataType, countNum int64, EventSize int64) {
+	t := consume.db.GetTableByKey(key)
 	if t == nil {
 		return
 	}
-	if This.checkIgnoreTable(t, pluginData.TableName) == false {
+	if consume.checkIgnoreTable(t, pluginData.TableName) == false {
 		if len(t.ToServerList) > 0 {
-			This.sendToServerList0(t.ToServerList, pluginData)
-			This.c.countChan <- &count.FlowCount{
+			consume.sendToServerList0(t.ToServerList, pluginData)
+			consume.c.countChan <- &count.FlowCount{
 				Count:    countNum,
 				TableId:  t.key,
 				ByteSize: EventSize * int64(len(t.ToServerList)),
@@ -263,11 +263,11 @@ func (This *consume_channel_obj) sendToServerList(key string, pluginData *plugin
 		}
 	}
 	for _, t0 := range t.likeTableList {
-		if This.checkIgnoreTable(t0, pluginData.TableName) == true {
+		if consume.checkIgnoreTable(t0, pluginData.TableName) == true {
 			continue
 		}
-		This.sendToServerList0(t0.ToServerList, pluginData)
-		This.c.countChan <- &count.FlowCount{
+		consume.sendToServerList0(t0.ToServerList, pluginData)
+		consume.c.countChan <- &count.FlowCount{
 			Count:    countNum,
 			TableId:  t0.key,
 			ByteSize: EventSize * int64(len(t0.ToServerList)),
@@ -275,7 +275,7 @@ func (This *consume_channel_obj) sendToServerList(key string, pluginData *plugin
 	}
 }
 
-func (This *consume_channel_obj) sendToServerList0(toServerList []*ToServer, pluginData *pluginDriver.PluginDataType) {
+func (consume *ConsumeChannel) sendToServerList0(toServerList []*ToServer, pluginData *pluginDriver.PluginDataType) {
 	for _, toServerInfo := range toServerList {
 		if toServerInfo.FilterQuery && pluginData.EventType == "sql" {
 			if pluginData.Query != "COMMIT" {
@@ -289,6 +289,6 @@ func (This *consume_channel_obj) sendToServerList0(toServerList []*ToServer, plu
 				continue
 			}
 		}
-		This.sendToServerResult(toServerInfo, pluginData)
+		consume.sendToServerResult(toServerInfo, pluginData)
 	}
 }

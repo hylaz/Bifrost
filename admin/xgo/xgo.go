@@ -1,7 +1,7 @@
 package xgo
 
 import (
-	"log"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"reflect"
 	"runtime/debug"
@@ -52,7 +52,7 @@ func (route *routeController) DoController(w http.ResponseWriter, req *http.Requ
 			if err == ErrAbort {
 				return
 			} else {
-				log.Println("xgo doController:", err, string(debug.Stack()))
+				logrus.Println("xgo doController:", err, string(debug.Stack()))
 			}
 		}
 	}()
@@ -107,7 +107,7 @@ func Router(route string, c ControllerInterface, FunNames string) error {
 func rounteFunc(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("err:", err, string(debug.Stack()))
+			logrus.Println("err:", err, string(debug.Stack()))
 		}
 	}()
 	var route string
@@ -120,7 +120,7 @@ func rounteFunc(w http.ResponseWriter, req *http.Request) {
 	var ok bool
 	if _, ok = routeMap[route]; !ok {
 		if strings.Index(route, "/favicon.ico") == -1 {
-			log.Printf("route:%s 404", route)
+			logrus.Printf("route:%s 404", route)
 		}
 		return
 	}

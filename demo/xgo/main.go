@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/brokercap/Bifrost/admin/xgo"
-	"github.com/brokercap/Bifrost/admin/xgo/example/manager"
+	"github.com/brokercap/Bifrost/demo/xgo/manager"
 )
 
 func init() {
