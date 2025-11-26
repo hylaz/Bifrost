@@ -5,10 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
 	"github.com/brokercap/Bifrost/plugin/driver"
-
-	//"github.com/go-redis/redis"
 	"strconv"
 	"strings"
 	"time"
@@ -20,12 +17,12 @@ const VERSION = "v1.7.4"
 const BIFROST_VERION = "v1.7.4"
 
 func init() {
-	driver.Register("redis", NewConn, VERSION, BIFROST_VERION)
+	driver.Register("redis", NewRedisConn, VERSION, BIFROST_VERION)
 }
 
 var ctx = context.Background()
 
-type Conn struct {
+type RedisConn struct {
 	driver.PluginDriverInterface
 	Uri    *string
 	status string
@@ -43,33 +40,33 @@ type PluginParam struct {
 	BifrostFilterQuery bool // bifrost server 保留,是否过滤sql事件
 }
 
-func NewConn() driver.Driver {
-	f := &Conn{
+func NewRedisConn() driver.Driver {
+	f := &RedisConn{
 		status: "close",
 	}
 	return f
 }
 
-func (This *Conn) SetOption(uri *string, param map[string]interface{}) {
-	This.Uri = uri
+func (redisConn *RedisConn) SetOption(uri *string, param map[string]interface{}) {
+	redisConn.Uri = uri
 	return
 }
 
-func (This *Conn) Open() error {
-	This.Connect()
+func (redisConn *RedisConn) Open() error {
+	redisConn.Connect()
 	return nil
 }
 
-func (This *Conn) GetUriExample() string {
+func (redisConn *RedisConn) GetUriExample() string {
 	return "pwd@tcp(127.0.0.1:6379)/0 or 127.0.0.1:6379 or pwd@tcp(127.0.0.1:6379,127.0.0.1:6380)/0 or 127.0.0.1:6379,127.0.0.1:6380"
 }
 
-func (This *Conn) CheckUri() error {
-	This.Connect()
-	if This.err != nil {
-		return This.err
+func (redisConn *RedisConn) CheckUri() error {
+	redisConn.Connect()
+	if redisConn.err != nil {
+		return redisConn.err
 	}
-	This.Close()
+	redisConn.Close()
 	return nil
 }
 
@@ -104,41 +101,41 @@ func GetUriParam(uri string) (pwd string, network string, url string, database i
 	return
 }
 
-func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
+func (redisConn *RedisConn) GetParam(p interface{}) (*PluginParam, error) {
 	s, err := json.Marshal(p)
 	if err != nil {
 		return nil, err
 	}
 	var param PluginParam
-	err2 := json.Unmarshal(s, &param)
-	if err2 != nil {
-		return nil, err2
+	err = json.Unmarshal(s, &param)
+	if err != nil {
+		return nil, err
 	}
-	This.p = &param
+	redisConn.p = &param
 	return &param, nil
 }
 
-func (This *Conn) SetParam(p interface{}) (interface{}, error) {
+func (redisConn *RedisConn) SetParam(p interface{}) (interface{}, error) {
 	if p == nil {
 		return nil, fmt.Errorf("param is nil")
 	}
 	switch p.(type) {
 	case *PluginParam:
-		This.p = p.(*PluginParam)
+		redisConn.p = p.(*PluginParam)
 		return p, nil
 	default:
-		return This.GetParam(p)
+		return redisConn.GetParam(p)
 	}
 }
 
-func (This *Conn) Connect() bool {
-	pwd, network, uri, database := GetUriParam(*This.Uri)
+func (redisConn *RedisConn) Connect() bool {
+	pwd, network, uri, database := GetUriParam(*redisConn.Uri)
 	if database < 0 {
-		This.err = fmt.Errorf("database must be in 0 and 16")
+		redisConn.err = fmt.Errorf("database must be in 0 and 16")
 		return false
 	}
 	if network != "tcp" {
-		This.err = fmt.Errorf("network must be tcp")
+		redisConn.err = fmt.Errorf("network must be tcp")
 		return false
 	}
 
@@ -149,114 +146,115 @@ func (This *Conn) Connect() bool {
 		PoolSize: 4096,
 	})
 
-	_, This.err = universalClient.Ping(ctx).Result()
-	if This.err != nil {
-		This.status = ""
+	_, redisConn.err = universalClient.Ping(ctx).Result()
+	if redisConn.err != nil {
+		redisConn.status = ""
 		return false
 	}
-	This.conn = universalClient
-	if This.conn == nil {
-		This.status = ""
-		This.err = errors.New("connect error")
+	redisConn.conn = universalClient
+	if redisConn.conn == nil {
+		redisConn.status = ""
+		redisConn.err = errors.New("connect error")
 		return false
 	} else {
-		This.status = "running"
-		This.err = nil
+		redisConn.status = "running"
+		redisConn.err = nil
 		return true
 	}
 }
 
-func (This *Conn) ReConnect() bool {
+func (redisConn *RedisConn) ReConnect() bool {
 	defer func() {
 		if err := recover(); err != nil {
-			This.err = fmt.Errorf(fmt.Sprint(err))
+			redisConn.err = fmt.Errorf(fmt.Sprint(err))
 		}
 	}()
-	if This.conn != nil {
-		This.conn.Close()
+	if redisConn.conn != nil {
+		redisConn.conn.Close()
 	}
-	This.Connect()
+	redisConn.Connect()
 	return true
 }
 
-func (This *Conn) Close() bool {
-	if This.conn != nil {
-		This.conn.Close()
+func (redisConn *RedisConn) Close() bool {
+	if redisConn.conn != nil {
+		redisConn.conn.Close()
 	}
 	return true
 }
 
-func (This *Conn) getKeyVal(data *driver.PluginDataType, index int) string {
-	return fmt.Sprint(driver.TransfeResult(This.p.KeyConfig, data, index))
+func (redisConn *RedisConn) getKeyVal(data *driver.PluginDataType, index int) string {
+	return fmt.Sprint(driver.TransfeResult(redisConn.p.KeyConfig, data, index))
 }
 
-func (This *Conn) getVal(data *driver.PluginDataType, index int) string {
-	return fmt.Sprint(driver.TransfeResult(This.p.ValConfig, data, index))
+func (redisConn *RedisConn) getVal(data *driver.PluginDataType, index int) string {
+	return fmt.Sprint(driver.TransfeResult(redisConn.p.ValConfig, data, index))
 }
 
-func (This *Conn) Insert(data *driver.PluginDataType, retry bool) (*driver.PluginDataType, *driver.PluginDataType, error) {
-	return This.Update(data, retry)
+func (redisConn *RedisConn) Insert(data *driver.PluginDataType, retry bool) (*driver.PluginDataType, *driver.PluginDataType, error) {
+	return redisConn.Update(data, retry)
 }
 
-func (This *Conn) Update(data *driver.PluginDataType, retry bool) (*driver.PluginDataType, *driver.PluginDataType, error) {
-	if This.err != nil {
-		This.ReConnect()
+func (redisConn *RedisConn) Update(data *driver.PluginDataType, retry bool) (*driver.PluginDataType, *driver.PluginDataType, error) {
+	if redisConn.err != nil {
+		redisConn.ReConnect()
 	}
 	index := len(data.Rows) - 1
-	Key := This.getKeyVal(data, index)
+	Key := redisConn.getKeyVal(data, index)
 	var err error
-	switch This.p.Type {
+	switch redisConn.p.Type {
 	case "set":
-		if This.p.ValConfig != "" {
-			err = This.conn.Set(ctx, Key, This.getVal(data, index), time.Duration(This.p.Expir)*time.Second).Err()
+		if redisConn.p.ValConfig != "" {
+			err = redisConn.conn.Set(ctx, Key, redisConn.getVal(data, index), time.Duration(redisConn.p.Expir)*time.Second).Err()
 		} else {
 			vbyte, _ := json.Marshal(data.Rows[index])
-			err = This.conn.Set(ctx, Key, string(vbyte), time.Duration(This.p.Expir)*time.Second).Err()
+			err = redisConn.conn.Set(ctx, Key, string(vbyte), time.Duration(redisConn.p.Expir)*time.Second).Err()
 		}
 		break
 	case "list":
-		return This.SendToList(Key, data)
+		return redisConn.SendToList(Key, data)
 		break
 	default:
-		err = fmt.Errorf(This.p.Type + " not in(set,list)")
+		err = fmt.Errorf(redisConn.p.Type + " not in(set,list)")
 		break
 	}
 
 	if err != nil {
-		This.err = err
+		redisConn.err = err
 		return nil, data, err
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) Del(data *driver.PluginDataType, retry bool) (*driver.PluginDataType, *driver.PluginDataType, error) {
-	if This.err != nil {
-		This.ReConnect()
+func (redisConn *RedisConn) Del(data *driver.PluginDataType, retry bool) (*driver.PluginDataType, *driver.PluginDataType, error) {
+	if redisConn.err != nil {
+		redisConn.ReConnect()
 	}
-	Key := This.getKeyVal(data, 0)
+
+	Key := redisConn.getKeyVal(data, 0)
 	var err error
-	switch This.p.Type {
+	switch redisConn.p.Type {
 	case "set":
-		err = This.conn.Del(ctx, Key).Err()
+		err = redisConn.conn.Del(ctx, Key).Err()
 		break
 	case "list":
-		return This.SendToList(Key, data)
+		return redisConn.SendToList(Key, data)
 		break
 	default:
-		err = fmt.Errorf(This.p.Type + " not in(set,list)")
+		err = fmt.Errorf(redisConn.p.Type + " not in(set,list)")
 	}
 	if err != nil {
-		This.err = err
+		redisConn.err = err
 		return nil, data, err
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) SendToList(Key string, data *driver.PluginDataType) (*driver.PluginDataType, *driver.PluginDataType, error) {
+func (redisConn *RedisConn) SendToList(Key string, data *driver.PluginDataType) (*driver.PluginDataType, *driver.PluginDataType, error) {
 	var Val string
 	var err error
-	if This.p.ValConfig != "" {
-		Val = This.getVal(data, 0)
+	if redisConn.p.ValConfig != "" {
+		Val = redisConn.getVal(data, 0)
 	} else {
 		c, err := json.Marshal(data)
 		if err != nil {
@@ -264,7 +262,7 @@ func (This *Conn) SendToList(Key string, data *driver.PluginDataType) (*driver.P
 		}
 		Val = string(c)
 	}
-	err = This.conn.LPush(ctx, Key, Val).Err()
+	err = redisConn.conn.LPush(ctx, Key, Val).Err()
 
 	if err != nil {
 		return nil, data, err
@@ -272,24 +270,24 @@ func (This *Conn) SendToList(Key string, data *driver.PluginDataType) (*driver.P
 	return nil, nil, nil
 }
 
-func (This *Conn) Query(data *driver.PluginDataType, retry bool) (*driver.PluginDataType, *driver.PluginDataType, error) {
-	if This.p.BifrostFilterQuery {
+func (redisConn *RedisConn) Query(data *driver.PluginDataType, retry bool) (*driver.PluginDataType, *driver.PluginDataType, error) {
+	if redisConn.p.BifrostFilterQuery {
 		return nil, nil, nil
 	}
-	if This.p.Type == "list" {
-		Key := This.getKeyVal(data, 0)
-		return This.SendToList(Key, data)
+	if redisConn.p.Type == "list" {
+		Key := redisConn.getKeyVal(data, 0)
+		return redisConn.SendToList(Key, data)
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) Commit(data *driver.PluginDataType, retry bool) (LastSuccessCommitData *driver.PluginDataType, ErrData *driver.PluginDataType, err error) {
-	if This.p.BifrostFilterQuery {
+func (redisConn *RedisConn) Commit(data *driver.PluginDataType, retry bool) (LastSuccessCommitData *driver.PluginDataType, ErrData *driver.PluginDataType, err error) {
+	if redisConn.p.BifrostFilterQuery {
 		return data, nil, nil
 	}
-	if This.p.Type == "list" {
-		Key := This.getKeyVal(data, 0)
-		LastSuccessCommitData, ErrData, err = This.SendToList(Key, data)
+	if redisConn.p.Type == "list" {
+		Key := redisConn.getKeyVal(data, 0)
+		LastSuccessCommitData, ErrData, err = redisConn.SendToList(Key, data)
 		if err != nil {
 			return
 		}

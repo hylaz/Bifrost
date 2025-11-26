@@ -1,19 +1,3 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package src
 
 import (
@@ -54,9 +38,8 @@ type PluginParam struct {
 	RequiredAcks         sarama.RequiredAcks
 	BifrostFilterQuery   bool // bifrost server 保留,是否过滤sql事件
 	BifrostMustBeSuccess bool // bifrost server 保留,数据是否能丢
-
-	dataList         []*sarama.ProducerMessage
-	commitBinlogList []*pluginDriver.PluginDataType
+	dataList             []*sarama.ProducerMessage
+	commitBinlogList     []*pluginDriver.PluginDataType
 }
 
 func NewConn() pluginDriver.Driver {
@@ -104,7 +87,6 @@ func (This *Conn) newProducer() bool {
 	config.ConnectConfig.Producer.Return.Errors = true
 	config.ConnectConfig.Producer.RequiredAcks = This.p.RequiredAcks
 	config.ConnectConfig.Producer.Timeout = time.Duration(This.p.Timeout) * time.Second
-	//config.ConnectConfig.Producer.Partitioner = sarama.NewRandomPartitioner
 	This.producer, This.err = sarama.NewSyncProducer(config.BrokerServerList, config.ConnectConfig)
 	if This.err == nil {
 		This.status = RUNNING
@@ -125,11 +107,10 @@ func (This *Conn) GetParam(p interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	//var param *PluginParam
 	param := &PluginParam{RequiredAcks: -1, Timeout: 10}
-	err2 := json.Unmarshal(s, param)
-	if err2 != nil {
-		return nil, err2
+	err = json.Unmarshal(s, param)
+	if err != nil {
+		return nil, err
 	}
 	if param.BatchSize <= 0 {
 		param.BatchSize = 1
@@ -140,6 +121,7 @@ func (This *Conn) GetParam(p interface{}) (interface{}, error) {
 	if param.Timeout < 0 {
 		param.Timeout = 0
 	}
+
 	switch param.RequiredAcks {
 	case sarama.NoResponse, sarama.WaitForAll, sarama.WaitForLocal:
 		break
