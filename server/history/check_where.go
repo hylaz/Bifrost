@@ -4,7 +4,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"github.com/brokercap/Bifrost/server"
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
 func CheckWhere(dbName, SchemaName, TableName, Where string) error {
@@ -15,10 +15,10 @@ func CheckWhere(dbName, SchemaName, TableName, Where string) error {
 	if dbObj == nil {
 		return fmt.Errorf("%s not exist", dbName)
 	}
-	return CheckWhere0(dbObj.ConnectUri, SchemaName, TableName, Where)
+	return checkDbWhere(dbObj.ConnectUri, SchemaName, TableName, Where)
 }
 
-func CheckWhere0(Uri string, SchemaName string, TableName string, Where string) error {
+func checkDbWhere(Uri string, SchemaName string, TableName string, Where string) error {
 	db := DBConnect(Uri)
 	if db != nil {
 		defer db.Close()
@@ -26,7 +26,7 @@ func CheckWhere0(Uri string, SchemaName string, TableName string, Where string) 
 	sql := "SELECT * FROM `" + SchemaName + "`.`" + TableName + "` WHERE " + Where + " LIMIT 1"
 	rows, err := db.Query(sql, []driver.Value{})
 	if err != nil {
-		log.Println("CheckWhere:", err, "sql:", sql)
+		logrus.Println("CheckWhere:", err, "sql:", sql)
 		return err
 	}
 	rows.Close()

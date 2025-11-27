@@ -5,7 +5,6 @@ import (
 	outputDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/brokercap/Bifrost/server/count"
 	"github.com/sirupsen/logrus"
-	"log"
 	"runtime/debug"
 	"sync"
 )
@@ -51,7 +50,7 @@ func DelChannel(name string, channelID int) bool {
 	if _, ok := DbList[name].channelMap[channelID]; !ok {
 		return false
 	}
-	log.Println(DbList[name].Name, "Channel:", DbList[name].channelMap[channelID].Name, "delete")
+	logrus.Println(DbList[name].Name, "Channel:", DbList[name].channelMap[channelID].Name, "delete")
 	delete(DbList[name].channelMap, channelID)
 	return true
 }

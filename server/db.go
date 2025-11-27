@@ -8,7 +8,7 @@ import (
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 	"github.com/brokercap/Bifrost/server/count"
 	"github.com/brokercap/Bifrost/server/warning"
-	"log"
+	"github.com/sirupsen/logrus"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -17,36 +17,9 @@ import (
 	"time"
 )
 
-var dbAndTableSplitChars = "_-"
-
-func GetSchemaAndTableJoin(schema, tableName string) string {
-	return schema + dbAndTableSplitChars + tableName
-}
-
-func GetSchemaAndTableBySplit(schemaAndTableName string) (schemaName, tableName string) {
-	var i int
-	// 这里这么操作 是因为 最开始设计 的时候是用  - 分割，现在发现 有不少用户 库名也有 -
-	// 为了兼容 ， 这里先判断一下 -, 是否存在，假如哪个用户 库名和表名都有 - 这个时候就会有问题了，但愿没这样的用户嘿嘿
-	i = strings.Index(schemaAndTableName, dbAndTableSplitChars)
-	if i == -1 {
-		if strings.Count(schemaAndTableName, "-") > 1 {
-			i = strings.LastIndexAny(schemaAndTableName, "-")
-		} else {
-			i = strings.IndexAny(schemaAndTableName, "-")
-		}
-		schemaName = schemaAndTableName[0:i]
-		tableName = schemaAndTableName[i+1:]
-	} else {
-		schemaName = schemaAndTableName[0:i]
-		tableName = schemaAndTableName[i+2:]
-	}
-	return
-}
-
-var AllSchemaAndTablekey string = GetSchemaAndTableJoin("*", "*")
+var AllSchemaAndTablekey = GetSchemaAndTableJoin("*", "*")
 
 var DbLock sync.Mutex
-
 var DbList map[string]*db
 
 func init() {
@@ -60,7 +33,7 @@ func GetDB(Name string) *db {
 }
 
 func AddNewDB(Name string, InputType string, inputInfo inputDriver.InputInfo, AddTime int64) *db {
-	var r bool = false
+	r := false
 	DbLock.Lock()
 	if _, ok := DbList[Name]; !ok {
 		DbList[Name] = NewDb(Name, InputType, inputInfo, AddTime)
@@ -68,30 +41,34 @@ func AddNewDB(Name string, InputType string, inputInfo inputDriver.InputInfo, Ad
 	}
 	count.SetDB(Name)
 	DbLock.Unlock()
-	log.Println("Add db Info:", InputType, Name, inputInfo)
-	if r == true {
+
+	logrus.Println("Add db Info:", InputType, Name, inputInfo)
+	if r {
 		return DbList[Name]
 	} else {
 		return nil
 	}
+
 }
 
 func UpdateDB(Name string, InputType string, inputInfo inputDriver.InputInfo, UpdateTime int64, updateToServer int8) error {
 	DbLock.Lock()
 	defer DbLock.Unlock()
 	if _, ok := DbList[Name]; !ok {
-		return fmt.Errorf(Name + " not exsit")
+		return fmt.Errorf(Name + "not exsit")
 	}
 
 	if inputInfo.ServerId == 0 {
 		return fmt.Errorf("serverId can't be 0")
 	}
+
 	dbObj := DbList[Name]
 	dbObj.Lock()
 	defer dbObj.Unlock()
 	if dbObj.ConnStatus != CLOSED {
 		return fmt.Errorf("db status must be close")
 	}
+
 	dbObj.ConnectUri = inputInfo.ConnectUri
 	dbObj.binlogDumpFileName = inputInfo.BinlogFileName
 	dbObj.binlogDumpPosition = inputInfo.BinlogPostion
@@ -106,10 +83,11 @@ func UpdateDB(Name string, InputType string, inputInfo inputDriver.InputInfo, Up
 		dbObj.gtid = inputInfo.GTID
 		dbObj.isGtid = true
 	}
-	log.Println("Update db Info:", InputType, Name, inputInfo)
+	logrus.Println("Update db Info:", InputType, Name, inputInfo)
 	if updateToServer == 0 {
 		return nil
 	}
+
 	var BinlogFileNum int
 	if inputInfo.BinlogFileName != "" {
 		index := strings.Index(inputInfo.BinlogFileName, ".")
@@ -118,7 +96,7 @@ func UpdateDB(Name string, InputType string, inputInfo inputDriver.InputInfo, Up
 
 	for key, t := range dbObj.tableMap {
 		for _, toServer := range t.ToServerList {
-			log.Println("UpdateToServerBinlogPosition:", key, " QueueMsgCount:", toServer.QueueMsgCount, " old:", toServer.BinlogFileNum, toServer.BinlogPosition, " new:", BinlogFileNum, inputInfo.BinlogPostion)
+			logrus.Println("UpdateToServerBinlogPosition:", key, " QueueMsgCount:", toServer.QueueMsgCount, " old:", toServer.BinlogFileNum, toServer.BinlogPosition, " new:", BinlogFileNum, inputInfo.BinlogPostion)
 			toServer.UpdateBinlogPosition(BinlogFileNum, inputInfo.BinlogPostion, inputInfo.GTID, 0)
 		}
 	}
@@ -137,17 +115,19 @@ func DelDB(Name string) bool {
 	defer DbLock.Unlock()
 	DBPositionBinlogKey := getDBBinlogkey(DbList[Name])
 	if _, ok := DbList[Name]; ok {
+
 		if DbList[Name].ConnStatus == CLOSED {
 			for _, c := range DbList[Name].channelMap {
 				count.DelChannel(Name, c.Name)
 			}
 			delete(DbList, Name)
 			count.DelDB(Name)
-			log.Println("delete db:", Name)
+			logrus.Println("delete db:", Name)
 		} else {
 			return false
 		}
 	}
+
 	// 删除binlog 信息
 	delBinlogPosition(DBPositionBinlogKey)
 	return true
@@ -209,8 +189,7 @@ type DbListStruct struct {
 }
 
 func GetListDb() map[string]DbListStruct {
-	var dbListMap map[string]DbListStruct
-	dbListMap = make(map[string]DbListStruct, 0)
+	dbListMap := make(map[string]DbListStruct, 0)
 	DbLock.Lock()
 	defer DbLock.Unlock()
 	for k, v := range DbList {
@@ -268,10 +247,6 @@ func GetDbInfo(dbname string) *DbListStruct {
 	}
 }
 
-func NewDbByNull() *db {
-	return &db{}
-}
-
 func NewDb(Name string, InputType string, inputInfo inputDriver.InputInfo, AddTime int64) *db {
 	var isGtid bool
 	if inputInfo.GTID != "" {
@@ -326,7 +301,7 @@ func (db *db) AddReplicateDoDb(schemaName, tableName string, doLock bool) bool {
 	TransferLikeTableReqName := db.TransferLikeTableReq(tableName)
 	if db.inputDriverObj != nil {
 		db.inputDriverObj.AddReplicateDoDb(schemaName, TransferLikeTableReqName)
-		log.Printf("AddReplicateDoDb dbName:%s ,schemaName:%s, tableName:%s , TransferLikeTableReq:%s ", db.Name, schemaName, tableName, TransferLikeTableReqName)
+		logrus.Printf("AddReplicateDoDb dbName:%s ,schemaName:%s, tableName:%s , TransferLikeTableReq:%s ", db.Name, schemaName, tableName, TransferLikeTableReqName)
 	}
 	if _, ok := db.replicateDoDb[schemaName]; !ok {
 		db.replicateDoDb[schemaName] = 1
@@ -345,7 +320,7 @@ func (db *db) DelReplicateDoDb(schemaName, tableName string, doLock bool) bool {
 	TransferLikeTableReqName := db.TransferLikeTableReq(tableName)
 	if db.inputDriverObj != nil {
 		db.inputDriverObj.DelReplicateDoDb(schemaName, TransferLikeTableReqName)
-		log.Printf("DelReplicateDoDb dbName:%s ,schemaName:%s, tableName:%s , TransferLikeTableReq:%s ", db.Name, schemaName, tableName, TransferLikeTableReqName)
+		logrus.Printf("DelReplicateDoDb dbName:%s ,schemaName:%s, tableName:%s , TransferLikeTableReq:%s ", db.Name, schemaName, tableName, TransferLikeTableReqName)
 
 	}
 	return true
@@ -382,8 +357,8 @@ func (db *db) TransferLikeTableReq(tableName string) string {
 func (db *db) getRightBinlogPosition() (newPosition uint32) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println(db.Name, " getRightBinlogPosition recover err:", err, " binlogDumpFileName:", db.binlogDumpFileName, " binlogDumpPosition:", db.binlogDumpPosition)
-			log.Println(string(debug.Stack()))
+			logrus.Println(db.Name, " getRightBinlogPosition recover err:", err, " binlogDumpFileName:", db.binlogDumpFileName, " binlogDumpPosition:", db.binlogDumpPosition)
+			logrus.Println(string(debug.Stack()))
 			newPosition = 0
 		}
 	}()
@@ -391,7 +366,7 @@ func (db *db) getRightBinlogPosition() (newPosition uint32) {
 	if err == nil {
 		return db.binlogDumpPosition
 	}
-	log.Println(db.Name, " getRightBinlogPosition err:", err, " binlogDumpFileName:", db.binlogDumpFileName, " binlogDumpPosition:", db.binlogDumpPosition)
+	logrus.Println(db.Name, " getRightBinlogPosition err:", err, " binlogDumpFileName:", db.binlogDumpFileName, " binlogDumpPosition:", db.binlogDumpPosition)
 	if strings.Index(err.Error(), "connect: operation timed out") != -1 {
 		return newPosition
 	}
@@ -443,8 +418,7 @@ func (db *db) Start() error {
 		break
 	case STOPPED:
 		db.ConnStatus = RUNNING
-		log.Println(db.Name+" monitor:", "running")
-		// 这里不需要判断 是否支持 增量，因为正常逻辑不会直接stop判断，最开始只会是close状态
+		logrus.Println(db.Name+" monitor:", "running")
 		go db.inputDriverObj.Start(db.inputStatusChan)
 		break
 	default:
@@ -557,7 +531,7 @@ func (db *db) monitorDump() (r bool) {
 				})
 			}
 
-			log.Println(db.Name+" monitor:", db.ConnStatus, db.ConnErr)
+			logrus.Println(db.Name+" monitor:", db.ConnStatus, db.ConnErr)
 			lastStatus = db.ConnStatus
 
 			break
@@ -631,7 +605,7 @@ func (db *db) AddTable(schemaName string, tableName string, IgnoreTable string, 
 			ignoreTableMap: db.IgnoreTableToMap(IgnoreTable),
 		}
 		db.addLikeTable(db.tableMap[key], schemaName, tableName)
-		log.Println("AddTable", db.Name, schemaName, tableName, db.channelMap[ChannelKey].Name, " IgnoreTable:", IgnoreTable, "DoTable:", DoTable)
+		logrus.Println("AddTable", db.Name, schemaName, tableName, db.channelMap[ChannelKey].Name, " IgnoreTable:", IgnoreTable, "DoTable:", DoTable)
 		count.SetTable(db.Name, key)
 	}
 	return true
@@ -643,14 +617,14 @@ func (db *db) UpdateTable(schemaName string, tableName string, IgnoreTable strin
 	db.Lock()
 	defer db.Unlock()
 	if _, ok := db.tableMap[key]; !ok {
-		log.Println("UpdateTable ", db.Name, schemaName, tableName, " not exsit ")
+		logrus.Println("UpdateTable ", db.Name, schemaName, tableName, " not exsit ")
 		return false
 	}
 	db.tableMap[key].DoTable = DoTable
 	db.tableMap[key].doTableMap = db.IgnoreTableToMap(DoTable)
 	db.tableMap[key].IgnoreTable = IgnoreTable
 	db.tableMap[key].ignoreTableMap = db.IgnoreTableToMap(IgnoreTable)
-	log.Println("UpdateTable", db.Name, schemaName, tableName, "IgnoreTable:", IgnoreTable, "DoTable:", DoTable)
+	logrus.Println("UpdateTable", db.Name, schemaName, tableName, "IgnoreTable:", IgnoreTable, "DoTable:", DoTable)
 	return true
 }
 
@@ -662,7 +636,7 @@ func (db *db) addLikeTable(t *Table, schemaName, tableName string) {
 	reqTableName := db.TransferLikeTableReq(tableName)
 	reqTagAll, err := regexp.Compile(reqTableName)
 	if err != nil {
-		log.Println(db.Name, " addLikeTable :", key, "reqTableName:", reqTableName, " reqTagAll err:", err)
+		logrus.Println(db.Name, " addLikeTable :", key, "reqTableName:", reqTableName, " reqTagAll err:", err)
 		return
 	}
 	for k, v := range db.tableMap {
@@ -712,7 +686,7 @@ func (db *db) GetTableByKey(key string) *Table {
 			reqTagAll, err := regexp.Compile(db.TransferLikeTableReq(TableName0))
 			if err != nil {
 				v.regexpErr = true
-				log.Println(db.Name, " GetTable :", k, "TransferLikeTableReq:", db.TransferLikeTableReq(TableName0), "reqTagAll err:", err)
+				logrus.Println(db.Name, " GetTable :", k, "TransferLikeTableReq:", db.TransferLikeTableReq(TableName0), "reqTagAll err:", err)
 				continue
 			}
 			if reqTagAll.FindString(TableName) != "" {
@@ -793,7 +767,7 @@ func (db *db) DelTable(schemaName string, tableName string) bool {
 		}
 	}
 	count.DelTable(db.Name, key)
-	log.Println("DelTable", db.Name, schemaName, tableName)
+	logrus.Println("DelTable", db.Name, schemaName, tableName)
 	if db.inputDriverObj != nil && toServerLen > 0 {
 		db.DelReplicateDoDb(schemaName, tableName, false)
 	}
@@ -814,7 +788,7 @@ func (db *db) AddChannel(Name string, MaxThreadNum int) (*Channel, int) {
 	db.channelMap[ChannelID].SetFlowCountChan(ch)
 	db.Unlock()
 
-	log.Println("AddChannel", db.Name, Name, "MaxThreadNum:", MaxThreadNum)
+	logrus.Println("AddChannel", db.Name, Name, "MaxThreadNum:", MaxThreadNum)
 	return db.channelMap[ChannelID], ChannelID
 }
 
@@ -830,10 +804,6 @@ func (db *db) GetChannel(channelID int) *Channel {
 	}
 	return db.channelMap[channelID]
 }
-
-/*
-获取 input 当前最新位点信息
-*/
 
 func (db *db) GetCurrentPosition() (*inputDriver.PluginPosition, error) {
 	inputDriverObj := db.GetInputDriverObj()

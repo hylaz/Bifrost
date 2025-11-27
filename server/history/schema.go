@@ -4,7 +4,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"github.com/brokercap/Bifrost/Bristol/mysql"
-	"log"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
 )
@@ -62,7 +62,7 @@ func GetSchemaTableFieldList(db mysql.MysqlConnection, schema string, table stri
 	p = append(p, table)
 	rows, err := db.Query(sql, p)
 	if err != nil {
-		log.Printf("%v\n", err)
+		logrus.Printf("%v", err)
 		return FieldList, err
 	}
 	defer rows.Close()
@@ -174,7 +174,7 @@ func GetTablePriKeyMinAndMaxVal(db mysql.MysqlConnection, schema, table, PriKey,
 	}
 	rows, err := db.Query(sql, []driver.Value{})
 	if err != nil {
-		log.Printf("%v\n", err)
+		logrus.Printf("%v\n", err)
 	}
 	defer rows.Close()
 	for {
@@ -202,7 +202,7 @@ func GetSchemaTableInfo(db mysql.MysqlConnection, schema string, table string) (
 	}
 	defer rows.Close()
 	if err != nil {
-		log.Printf("%v\n", err)
+		logrus.Printf("%v", err)
 		return tableInfo
 	}
 

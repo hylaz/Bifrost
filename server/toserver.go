@@ -13,15 +13,14 @@ type ToServerStatus string
 
 type ToServer struct {
 	sync.RWMutex
-	Key           *string `json:"-"` // 上一级的key
-	ToServerID    int
-	PluginName    string
-	MustBeSuccess bool
-	FilterQuery   bool
-	FilterUpdate  bool
-	FieldList     []string
-	ToServerKey   string
-
+	Key               *string `json:"-"` // 上一级的key
+	ToServerID        int
+	PluginName        string
+	MustBeSuccess     bool
+	FilterQuery       bool
+	FilterUpdate      bool
+	FieldList         []string
+	ToServerKey       string
 	LastSuccessBinlog *PositionStruct // 最后处理成功的位点信息
 	LastQueueBinlog   *PositionStruct // 最后进入队列的位点信息
 

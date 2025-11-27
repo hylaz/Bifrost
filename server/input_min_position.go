@@ -8,7 +8,6 @@ import (
 )
 
 func (db *db) CronCalcMinPosition() (p *inputDriver.PluginPosition) {
-	// 假如不需要定时计算全量，则直接退出
 	if !db.inputDriverObj.IsSupported(inputDriver.SupportNeedMinPosition) {
 		return
 	}
@@ -16,11 +15,11 @@ func (db *db) CronCalcMinPosition() (p *inputDriver.PluginPosition) {
 	defer func() {
 		logrus.Println(db.Name, " CronCalcMinPosition end")
 	}()
+
 	// 设置3500ms，是为了和 3秒的进行保存位点的任务进行错开
 	timeDuration := time.Duration(config.CronCalcMinPositionTimeout) * time.Millisecond
 	timer := time.NewTimer(timeDuration)
 	for {
-		timer.Reset(timeDuration)
 		select {
 		case <-timer.C:
 			p := db.CalcMinPosition()
@@ -31,11 +30,12 @@ func (db *db) CronCalcMinPosition() (p *inputDriver.PluginPosition) {
 					db.inputDriverObj.DoneMinPosition(p)
 				}
 			}()
-			break
+			timer.Reset(timeDuration)
 		case <-db.statusCtx.ctx.Done():
 			return
 		}
 	}
+
 }
 
 func (db *db) CalcMinPosition() (p *inputDriver.PluginPosition) {
@@ -131,7 +131,6 @@ func (db *db) CompareToServerPositionAndReturnLess(last, current *ToServer) (las
 }
 
 func (db *db) CompareToServerPositionAndReturnGreater(last, current *ToServer) (lastSuccessToServerInfo *ToServer) {
-
 	if last.LastSuccessBinlog.EventID >= current.LastSuccessBinlog.EventID {
 		return last
 	}
