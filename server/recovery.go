@@ -1,18 +1,3 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package server
 
 import (
@@ -22,7 +7,7 @@ import (
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/brokercap/Bifrost/server/filequeue"
-	"log"
+	"github.com/sirupsen/logrus"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -131,10 +116,9 @@ func CompareBinlogPositionAndReturnLess(Binlog1 *PositionStruct, Binlog2 *Positi
 
 func Recovery(content *json.RawMessage, isStop bool) {
 	var data map[string]dbSaveInfo
-
 	errors := json.Unmarshal(*content, &data)
 	if errors != nil {
-		log.Println("recorery db content errors;", errors)
+		logrus.Println("recorery db content errors;", errors)
 		os.Exit(1)
 		return
 	}
@@ -159,7 +143,7 @@ func recoveryData(data map[string]dbSaveInfo, isStop bool) {
 		}
 		db := AddNewDB(name, dbInfo.InputType, inputInfo, dbInfo.AddTime)
 		if db == nil {
-			log.Println("recovry data error2,data:", dbInfo)
+			logrus.Println("recovry data error2,data:", dbInfo)
 			os.Exit(1)
 		}
 		m := make([]string, 0)
@@ -195,12 +179,12 @@ func recoveryData(data map[string]dbSaveInfo, isStop bool) {
 
 		func() {
 			if PerformanceTestingParam := config.GetConfigVal("PerformanceTesting", dbInfo.Name); PerformanceTestingParam != "" {
-				log.Println("PerformanceTesting", dbInfo.Name, "PerformanceTestingParam:", PerformanceTestingParam)
+				logrus.Println("PerformanceTesting", dbInfo.Name, "PerformanceTestingParam:", PerformanceTestingParam)
 				t := strings.Split(PerformanceTestingParam, ",")
 				var err error
 				defer func() {
 					if err != nil {
-						log.Println("PerformanceTesting", dbInfo.Name, err)
+						logrus.Println("PerformanceTesting", dbInfo.Name, err)
 					}
 				}()
 				if len(t) < 2 {
@@ -369,13 +353,13 @@ func recoveryData(data map[string]dbSaveInfo, isStop bool) {
 						var err error
 						func() {
 							if e := recover(); e != nil {
-								log.Printf("dbName:%s ;SchemaName:%s ; TableName:%s ; ReadLastFromFileQueue recovry:%s ; debug:%s", db.Name, schemaName, tableName, fmt.Sprint(e), string(debug.Stack()))
+								logrus.Printf("dbName:%s ;SchemaName:%s ; TableName:%s ; ReadLastFromFileQueue recovry:%s ; debug:%s", db.Name, schemaName, tableName, fmt.Sprint(e), string(debug.Stack()))
 								return
 							}
 							lastDataEvent, err = toServerObj.InitFileQueue(db.Name, schemaName, tableName).ReadLastFromFileQueue()
 						}()
 						if err != nil {
-							log.Fatal(fmt.Sprintf("dbName:%s ;SchemaName:%s ; TableName:%s ; ReadLastFromFileQueue Error:%s", db.Name, schemaName, tableName, err.Error()))
+							logrus.Fatal(fmt.Sprintf("dbName:%s ;SchemaName:%s ; TableName:%s ; ReadLastFromFileQueue Error:%s", db.Name, schemaName, tableName, err.Error()))
 						}
 						// 假如没有找到数据，或者文件队列里的最后一条数据，位点 对不上 ToServer里保存的数据，则认为数据是有异常的，则需要将 FileQueueStatus 修改为  false,清空文件队列数据
 						// 假如文件队列里最后一条数据和当前同步记录的进入 这个同步最后一个位点数据 相等，则不进行位点计算，随便其他 同步位点怎么来
@@ -388,7 +372,7 @@ func recoveryData(data map[string]dbSaveInfo, isStop bool) {
 						filequeue.Delete(GetFileQueue(db.Name, schemaName, tableName, fmt.Sprint(toServerObj.ToServerID)))
 					}
 					db.AddTableToServer(schemaName, tableName, toServerObj)
-					log.Printf("dbname:%s,schemaName:%s,tableName:%s ToServerKey:%s,ToServerID:%d,BinlogFileNum:%d,BinlogPosition:%d", db.Name, schemaName, tableName, toServer.ToServerKey, toServer.ToServerID, toServer.BinlogFileNum, toServer.BinlogPosition)
+					logrus.Printf("dbname:%s,schemaName:%s,tableName:%s ToServerKey:%s,ToServerID:%d,BinlogFileNum:%d,BinlogPosition:%d", db.Name, schemaName, tableName, toServer.ToServerKey, toServer.ToServerID, toServer.BinlogFileNum, toServer.BinlogPosition)
 
 					// 假如当前同步配置 最后输入的 位点 等于 最后成功的位点为0,则认为这个同步，压根就没有数据进来过,位点是没有问题的
 					if toServer.LastBinlogFileNum == 0 {
@@ -400,7 +384,7 @@ func recoveryData(data map[string]dbSaveInfo, isStop bool) {
 							//假如所有表都还是正常同步的情况下，LastBinlog 取大值
 							LastBinlog0 := CompareBinlogPositionAndReturnGreater(toServerBinlog, LastBinlog)
 							if LastBinlog0 == toServerBinlog {
-								log.Println("recovery binlog change2:", dbInfo.Name, " old", " BinlogFileNum:", LastBinlog.BinlogFileNum, " BinlogPosition:", LastBinlog.BinlogPosition, " GTID:", LastBinlog.GTID, " new BinlogFileNum:", toServerBinlog.BinlogFileNum, " BinlogPosition:", toServerBinlog.BinlogPosition, "GTID:", toServerBinlog.GTID)
+								logrus.Println("recovery binlog change2:", dbInfo.Name, " old", " BinlogFileNum:", LastBinlog.BinlogFileNum, " BinlogPosition:", LastBinlog.BinlogPosition, " GTID:", LastBinlog.GTID, " new BinlogFileNum:", toServerBinlog.BinlogFileNum, " BinlogPosition:", toServerBinlog.BinlogPosition, "GTID:", toServerBinlog.GTID)
 								LastBinlog = LastBinlog0
 							}
 						}
@@ -415,12 +399,12 @@ func recoveryData(data map[string]dbSaveInfo, isStop bool) {
 						if LastBinlog.BinlogFileNum == 0 {
 							LastBinlog.BinlogFileNum = toServerBinlog.BinlogFileNum
 							LastBinlog.BinlogPosition = toServerBinlog.BinlogPosition
-							log.Println("recovery binlog change3:", dbInfo.Name, " old", " BinlogFileNum:", 0, " BinlogPosition:", 0, " GTID:", "", " new BinlogFileNum:", toServerBinlog.BinlogFileNum, " ", toServerBinlog.BinlogPosition, "GTID:", toServerBinlog.GTID)
+							logrus.Println("recovery binlog change3:", dbInfo.Name, " old", " BinlogFileNum:", 0, " BinlogPosition:", 0, " GTID:", "", " new BinlogFileNum:", toServerBinlog.BinlogFileNum, " ", toServerBinlog.BinlogPosition, "GTID:", toServerBinlog.GTID)
 
 						} else {
 							LastBinlog0 := CompareBinlogPositionAndReturnLess(LastBinlog, toServerBinlog)
 							if LastBinlog0 == toServerBinlog {
-								log.Println("recovery binlog change1:", dbInfo.Name, " old", " BinlogFileNum:", LastBinlog.BinlogFileNum, " BinlogPosition:", LastBinlog.BinlogPosition, " GTID:", LastBinlog.GTID, " new ", "BinlogFileNum:", toServerBinlog.BinlogFileNum, " BinlogPosition:", toServerBinlog.BinlogPosition, "GTID:", toServerBinlog.GTID)
+								logrus.Println("recovery binlog change1:", dbInfo.Name, " old", " BinlogFileNum:", LastBinlog.BinlogFileNum, " BinlogPosition:", LastBinlog.BinlogPosition, " GTID:", LastBinlog.GTID, " new ", "BinlogFileNum:", toServerBinlog.BinlogFileNum, " BinlogPosition:", toServerBinlog.BinlogPosition, "GTID:", toServerBinlog.GTID)
 								LastBinlog = LastBinlog0
 							}
 						}
@@ -449,7 +433,7 @@ func recoveryData(data map[string]dbSaveInfo, isStop bool) {
 			//假如key val存储中DB 的位点值存在 取大值
 			DBBinlog0 := CompareBinlogPositionAndReturnGreater(DBBinlog, DBLastBinlogPositionFromDB)
 			if DBBinlog0 == DBLastBinlogPositionFromDB {
-				log.Println("recovery DBBinlog change:", dbInfo.Name, " old BinlogFileNum:", LastDBBinlogFileNum, " BinlogPosition:", db.binlogDumpPosition, " GTID:", db.gtid, " new BinlogFileNum:", DBLastBinlogPositionFromDB.BinlogFileNum, " BinlogPosition:", DBLastBinlogPositionFromDB.BinlogPosition, " GITD:", DBLastBinlogPositionFromDB.GTID)
+				logrus.Println("recovery DBBinlog change:", dbInfo.Name, " old BinlogFileNum:", LastDBBinlogFileNum, " BinlogPosition:", db.binlogDumpPosition, " GTID:", db.gtid, " new BinlogFileNum:", DBLastBinlogPositionFromDB.BinlogFileNum, " BinlogPosition:", DBLastBinlogPositionFromDB.BinlogPosition, " GITD:", DBLastBinlogPositionFromDB.GTID)
 				DBBinlog = DBBinlog0
 			}
 		}
@@ -465,7 +449,7 @@ func recoveryData(data map[string]dbSaveInfo, isStop bool) {
 			//这里为什么要取大值,是因为位点是定时刷盘的,有可能在哪些特殊情况下,表位点成功了,db位点没保存成功
 			LastBinlog0 := CompareBinlogPositionAndReturnGreater(DBBinlog, LastBinlog)
 			if LastBinlog0 == DBBinlog {
-				log.Println("recovery binlog change5:", dbInfo.Name, " old BinlogFileNum:", LastBinlog.BinlogFileNum, " BinlogPosition:", LastBinlog.BinlogPosition, " GTID:", LastBinlog.GTID, " new BinlogFileNum:", DBBinlog.BinlogFileNum, " BinlogPosition:", DBBinlog.BinlogPosition, " GITD:", DBBinlog.GTID)
+				logrus.Println("recovery binlog change5:", dbInfo.Name, " old BinlogFileNum:", LastBinlog.BinlogFileNum, " BinlogPosition:", LastBinlog.BinlogPosition, " GTID:", LastBinlog.GTID, " new BinlogFileNum:", DBBinlog.BinlogFileNum, " BinlogPosition:", DBBinlog.BinlogPosition, " GITD:", DBBinlog.GTID)
 				LastBinlog = LastBinlog0
 			}
 		}
@@ -580,7 +564,7 @@ func SaveDBInfoToFileData() interface{} {
 			}
 			c.Unlock()
 		}
-		log.Println(k, data[k])
+		logrus.Println(k, data[k])
 		db.Unlock()
 	}
 	DbLock.Unlock()

@@ -3,7 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"github.com/brokercap/Bifrost/server/user"
-	"io/ioutil"
+	"io"
 	"strings"
 )
 
@@ -19,7 +19,7 @@ type UserParam struct {
 }
 
 func (c *UserController) getParam() *UserParam {
-	body, err := ioutil.ReadAll(c.Ctx.Request.Body)
+	body, err := io.ReadAll(c.Ctx.Request.Body)
 	if err != nil {
 		result := ResultDataStruct{Status: 0, Msg: err.Error(), Data: nil}
 		c.SetJsonData(result)

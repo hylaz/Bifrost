@@ -8,11 +8,13 @@ import (
 	"github.com/brokercap/Bifrost/server/user"
 	"github.com/brokercap/Bifrost/server/warning"
 	"github.com/sirupsen/logrus"
+	"os"
 	"sync"
 	"time"
 )
 
 var l sync.RWMutex
+var serverStartTime = time.Now()
 
 type recovery struct {
 	Version   string
@@ -33,8 +35,6 @@ type recoveryDataSturct struct {
 }
 
 func DoRecoverySnapshotData() {
-
-	//这里初始化用户,第一次启动的情况下,配置文件中的用户需要初始化
 	user.InitUser()
 
 	fd, err := storage.GetDBInfo()
@@ -44,27 +44,29 @@ func DoRecoverySnapshotData() {
 	if string(fd) == "" {
 		return
 	}
+
 	var data recovery
 	errors := json.Unmarshal(fd, &data)
 	if errors != nil {
 		logrus.Printf("recovery error:%s, data:%s \r\n", errors, string(fd))
 		return
 	}
+
 	setServerStartTime(data.StartTime)
 	if data.ToServer != nil && string(*data.ToServer) != "{}" {
 		plugin.Recovery(data.ToServer)
 	}
+
 	if data.DbInfo != nil && string(*data.DbInfo) != "{}" {
 		Recovery(data.DbInfo, false)
 	}
+
 	if data.User != nil && string(*data.User) != "[]" {
 		user.RecoveryUser(data.User)
 	}
-
 	if data.Warning != nil && string(*data.Warning) != "{}" {
 		warning.RecoveryWarning(data.Warning)
 	}
-
 }
 
 func GetSnapshotData() ([]byte, error) {
@@ -86,7 +88,6 @@ func GetSnapshotData() ([]byte, error) {
 	return json.Marshal(data)
 }
 
-// 只获取 数据源 和 目标库的镜像数据
 func GetSnapshotData2() ([]byte, error) {
 	l.Lock()
 	defer func() {
@@ -142,4 +143,25 @@ func DoRecoveryByBackupData(fileContent string) {
 	if string(*data.User) != "[]" {
 		user.RecoveryUser(data.User)
 	}
+}
+
+func setServerStartTime(t time.Time) {
+	if t.IsZero() {
+		t = GetServerStartTimeByConfigFile()
+	}
+
+	if !serverStartTime.IsZero() {
+		if t.After(serverStartTime) {
+			return
+		}
+	}
+	serverStartTime = t
+}
+
+func GetServerStartTimeByConfigFile() time.Time {
+	fInfo, err := os.Stat(config.BifrostConfigFile)
+	if err != nil {
+		return time.Now()
+	}
+	return fInfo.ModTime()
 }

@@ -3,14 +3,14 @@ package plugin
 import (
 	"encoding/json"
 	pluginStorage "github.com/brokercap/Bifrost/plugin/storage"
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
 func Recovery(data *json.RawMessage) {
 	var toData map[string]pluginStorage.ToServer
 	errors := json.Unmarshal([]byte(*data), &toData)
 	if errors != nil {
-		log.Println("to server recovry error:", errors)
+		logrus.Println("to server recovry error:", errors)
 		return
 	}
 	for name, v := range toData {
