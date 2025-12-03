@@ -13,18 +13,17 @@ import (
 	"strings"
 )
 
-const VERSION = "v1.6.0"
-const BIFROST_VERION = "v1.6.0"
+const Version = "v1.6.0"
+const BifrostVersion = "v1.6.0"
 
 func init() {
-	pluginDriver.Register("MongoDB", NewConn, VERSION, BIFROST_VERION)
+	pluginDriver.Register("MongoDB", NewConn, Version, BifrostVersion)
 }
 
 type Conn struct {
 	pluginDriver.PluginDriverInterface
 	Uri    *string
 	status string
-	//conn   *mgo.Session
 	client *mongo.Client
 	err    error
 	p      *PluginParam

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/brokercap/Bifrost/plugin/driver"
 	pluginStorage "github.com/brokercap/Bifrost/plugin/storage"
-	"log"
+	"github.com/sirupsen/logrus"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -35,7 +35,7 @@ func (This *ToServerConn) checkClose(t *pluginStorage.ToServer) {
 	if t.UpdateTime != This.updateTime {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Println("ToServerKey:", This.toServerKey, "close recover:", err, string(debug.Stack()))
+				logrus.Println("ToServerKey:", This.toServerKey, "close recover:", err, string(debug.Stack()))
 			}
 			This.updateTime = t.UpdateTime
 		}()
@@ -46,7 +46,7 @@ func (This *ToServerConn) checkClose(t *pluginStorage.ToServer) {
 func GetPlugin(ToServerKey string) (toServerConn *ToServerConn) {
 	t := pluginStorage.GetToServerInfo(ToServerKey)
 	if t == nil {
-		log.Println("ToServer:", ToServerKey, " no exsit,start error")
+		logrus.Println("ToServer:", ToServerKey, " no exsit,start error")
 		return nil
 	}
 	t.Lock()
@@ -132,7 +132,7 @@ func startPlugin(ToServerKey string) (toServerConn *ToServerConn) {
 func BackPlugin(ToServerConn *ToServerConn) bool {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("BackPlugin ToServerKey:%s recover err:%s debug:%s", ToServerConn.toServerKey, fmt.Sprint(err), string(debug.Stack()))
+			logrus.Printf("BackPlugin ToServerKey:%s recover err:%s debug:%s", ToServerConn.toServerKey, fmt.Sprint(err), string(debug.Stack()))
 			return
 		}
 	}()
@@ -146,7 +146,7 @@ func BackPlugin(ToServerConn *ToServerConn) bool {
 		func() {
 			defer func() {
 				if err := recover(); err != nil {
-					log.Println(string(debug.Stack()))
+					logrus.Println(string(debug.Stack()))
 					return
 				}
 			}()

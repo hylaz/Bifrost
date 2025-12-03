@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/brokercap/Bifrost/config"
 	"github.com/brokercap/Bifrost/plugin/driver"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -26,14 +26,14 @@ func init() {
 
 func DoDynamicPlugin() {
 	if runtime.GOOS != "linux" {
-		log.Println(runtime.GOOS, "don't support dynamic plugin")
+		logrus.Println(runtime.GOOS, "don't support dynamic plugin")
 		return
 	}
 	if !config.DynamicPlugin {
-		log.Println("don't support dynamic plugin")
+		logrus.Println("don't support dynamic plugin")
 		return
 	}
-	log.Println("load dynamic plugin every 60s")
+	logrus.Println("load dynamic plugin every 60s")
 
 	execPath, _ := exec.LookPath(os.Args[0])
 	pluginDir = filepath.Dir(execPath) + "/plugin/"
@@ -74,13 +74,11 @@ func LoadPlugin() error {
 		}
 		if dir.IsDir() {
 			files, _ := ioutil.ReadDir(pluginDir + dir.Name())
-			//log.Println("dirs",pluginDir+dir.Name())
 			for _, file := range files {
 				if file.IsDir() {
 					continue
 				}
 				fileSuffix := path.Ext(file.Name())
-				//log.Println("file",pluginDir+dir.Name()+"/"+file.Name())
 				if fileSuffix == ".so" {
 					if file.ModTime().Unix() < lastLoadPluginTime {
 						continue
@@ -98,7 +96,7 @@ func LoadPlugin() error {
 	for name, v := range pluginSoMap {
 		_, err := plugin.Open(v)
 		if err != nil {
-			log.Println("plugin load so:", v, " err:", err)
+			logrus.Println("plugin load so:", v, " err:", err)
 			errorPluginMap[name] = driver.DriverStructure{
 				Error: err.Error() + "; Current Bifrost plugin API_VERSION : " + driver.GetApiVersion(),
 			}
@@ -109,9 +107,8 @@ func LoadPlugin() error {
 			delete(pluginSoMap, name)
 		}
 
-		log.Println("plugin load success so:", v)
+		logrus.Println("plugin load success so:", v)
 	}
-	//log.Println(errorPluginMap)
 
 	//这里要把有可能第一次so 加载失败了,然后删除了so文件，需要把错误信息给删除掉
 	for name, _ := range errorPluginMap {
