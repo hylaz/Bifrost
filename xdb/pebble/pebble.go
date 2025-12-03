@@ -15,14 +15,13 @@ func (pebbleDriver *PebbleDriver) Open(path string) (driver.XdbDriver, error) {
 }
 
 func newConn(path string) (*PebbleConn, error) {
-
 	if path == "" {
 		return nil, fmt.Errorf("path error")
 	}
-	f := &PebbleConn{
-		path: path,
-	}
 
+	f := &PebbleConn{
+		dir: path,
+	}
 	err := f.connect()
 	if err != nil {
 		return nil, err
@@ -31,16 +30,14 @@ func newConn(path string) (*PebbleConn, error) {
 }
 
 type PebbleConn struct {
-	path string
-	err  error
-	db   *pebble.DB
+	dir string
+	err error
+	db  *pebble.DB
 }
 
 func (pebbleConn *PebbleConn) connect() error {
-	os.MkdirAll(pebbleConn.path, 0755)
-
-	pebbleConn.db, pebbleConn.err = pebble.Open(pebbleConn.path, &pebble.Options{})
-
+	os.MkdirAll(pebbleConn.dir, 0755)
+	pebbleConn.db, pebbleConn.err = pebble.Open(pebbleConn.dir, &pebble.Options{})
 	return pebbleConn.err
 }
 
@@ -89,13 +86,16 @@ func prefixUpperBound(prefix []byte) []byte {
 func (pebbleConn *PebbleConn) GetListByKeyPrefix(prefix []byte) ([]driver.ListValue, error) {
 
 	var results []driver.ListValue
-
 	// 创建迭代器选项
+
+	upper := make([]byte, len(prefix))
+	copy(upper, prefix)
+	upper = append(upper, 0xFF)
+
 	iterOptions := &pebble.IterOptions{
 		LowerBound: prefix,
-		UpperBound: prefixUpperBound(prefix),
+		UpperBound: upper,
 	}
-
 	iter, err := pebbleConn.db.NewIter(iterOptions)
 	if err != nil {
 		return results, err
@@ -108,7 +108,6 @@ func (pebbleConn *PebbleConn) GetListByKeyPrefix(prefix []byte) ([]driver.ListVa
 		if err != nil {
 			return results, err
 		}
-
 		kv := driver.ListValue{
 			Key:   string(key),
 			Value: string(val),

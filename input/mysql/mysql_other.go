@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	inputDriver.Register("mysql(other)", NewMySqlOtherInputPlugin, VERSION, BIFROST_VERSION)
+	inputDriver.Register("mysql(other)", NewMySqlOtherInputPlugin, Vesrion, BifrostVesrion)
 }
 
 type MysqlOtherInput struct {

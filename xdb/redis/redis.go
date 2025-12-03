@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-const VERSION = "v1.1.1"
-
 type RedisDriver struct{}
 
 var ctx = context.Background()

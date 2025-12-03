@@ -2,8 +2,11 @@ package xdb
 
 import (
 	"encoding/json"
+	_ "github.com/brokercap/Bifrost/xdb/badger"
+	_ "github.com/brokercap/Bifrost/xdb/bbolt"
 	"github.com/brokercap/Bifrost/xdb/driver"
 	_ "github.com/brokercap/Bifrost/xdb/leveldb"
+	_ "github.com/brokercap/Bifrost/xdb/pebble"
 	_ "github.com/brokercap/Bifrost/xdb/redis"
 )
 

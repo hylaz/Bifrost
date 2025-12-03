@@ -9,12 +9,10 @@ import (
 	"strings"
 )
 
-const VERSION = "v1.1.0"
-
 type LeveldbDriver struct{}
 
-func (leveldbDriver *LeveldbDriver) Open(uri string) (driver.XdbDriver, error) {
-	return newConn(uri)
+func (leveldbDriver *LeveldbDriver) Open(path string) (driver.XdbDriver, error) {
+	return newConn(path)
 }
 
 func newConn(path string) (*LeveldbConn, error) {
