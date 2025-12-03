@@ -1,14 +1,14 @@
 package main
 
 import (
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"log"
 	"os"
 	"reflect"
 	"time"
 )
 
-func callback(data *mysql.EventReslut) {
+func callback(data *mysql2.EventReslut) {
 	log.Println(data)
 	if data.Query == "" {
 		for k, v := range data.Rows[len(data.Rows)-1] {
@@ -35,10 +35,10 @@ func Position() {
 
 	reslut := make(chan error, 1)
 
-	BinlogDump := &mysql.BinlogDump{
+	BinlogDump := &mysql2.BinlogDump{
 		DataSource:  DBsource,
 		CallbackFun: callback,
-		OnlyEvent:   []mysql.EventType{mysql.QUERY_EVENT, mysql.WRITE_ROWS_EVENTv1, mysql.UPDATE_ROWS_EVENTv1, mysql.DELETE_ROWS_EVENTv1, mysql.WRITE_ROWS_EVENTv2, mysql.UPDATE_ROWS_EVENTv2, mysql.DELETE_ROWS_EVENTv2},
+		OnlyEvent:   []mysql2.EventType{mysql2.QUERY_EVENT, mysql2.WRITE_ROWS_EVENTv1, mysql2.UPDATE_ROWS_EVENTv1, mysql2.DELETE_ROWS_EVENTv1, mysql2.WRITE_ROWS_EVENTv2, mysql2.UPDATE_ROWS_EVENTv2, mysql2.DELETE_ROWS_EVENTv2},
 	}
 	BinlogDump.AddReplicateDoDb("bifrost_test", "*")
 	BinlogDump.AddReplicateDoDb("test", "*")
@@ -71,10 +71,10 @@ func Gtid() {
 	gtid = "0-10-7196"
 
 	reslut := make(chan error, 1)
-	BinlogDump := &mysql.BinlogDump{
+	BinlogDump := &mysql2.BinlogDump{
 		DataSource:  DBsource,
 		CallbackFun: callback,
-		OnlyEvent:   []mysql.EventType{mysql.QUERY_EVENT, mysql.WRITE_ROWS_EVENTv1, mysql.UPDATE_ROWS_EVENTv1, mysql.DELETE_ROWS_EVENTv1, mysql.WRITE_ROWS_EVENTv2, mysql.UPDATE_ROWS_EVENTv2, mysql.DELETE_ROWS_EVENTv2},
+		OnlyEvent:   []mysql2.EventType{mysql2.QUERY_EVENT, mysql2.WRITE_ROWS_EVENTv1, mysql2.UPDATE_ROWS_EVENTv1, mysql2.DELETE_ROWS_EVENTv1, mysql2.WRITE_ROWS_EVENTv2, mysql2.UPDATE_ROWS_EVENTv2, mysql2.DELETE_ROWS_EVENTv2},
 	}
 	BinlogDump.AddReplicateDoDb("bifrost_test", "*")
 	BinlogDump.AddReplicateDoDb("test", "*")
@@ -101,10 +101,10 @@ func Gtid2() {
 	gtid = "03b14c99-63fb-11eb-9902-0242ac110003:1-9,41f084ba-63f4-11eb-96a1-0242ac110002:1-12"
 
 	reslut := make(chan error, 1)
-	BinlogDump := &mysql.BinlogDump{
+	BinlogDump := &mysql2.BinlogDump{
 		DataSource:  DBsource,
 		CallbackFun: callback,
-		OnlyEvent:   []mysql.EventType{mysql.QUERY_EVENT, mysql.WRITE_ROWS_EVENTv1, mysql.UPDATE_ROWS_EVENTv1, mysql.DELETE_ROWS_EVENTv1, mysql.WRITE_ROWS_EVENTv2, mysql.UPDATE_ROWS_EVENTv2, mysql.DELETE_ROWS_EVENTv2},
+		OnlyEvent:   []mysql2.EventType{mysql2.QUERY_EVENT, mysql2.WRITE_ROWS_EVENTv1, mysql2.UPDATE_ROWS_EVENTv1, mysql2.DELETE_ROWS_EVENTv1, mysql2.WRITE_ROWS_EVENTv2, mysql2.UPDATE_ROWS_EVENTv2, mysql2.DELETE_ROWS_EVENTv2},
 	}
 	BinlogDump.AddReplicateDoDb("bifrost_test", "*")
 	BinlogDump.AddReplicateDoDb("test", "*")

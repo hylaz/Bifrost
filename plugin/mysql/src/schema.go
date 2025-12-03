@@ -3,7 +3,7 @@ package src
 import (
 	"database/sql/driver"
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"log"
 	"strconv"
 )
@@ -18,7 +18,7 @@ func NewMysqlDBConn(uri string) *mysqlDB {
 
 type mysqlDB struct {
 	uri  string
-	conn mysql.MysqlConnection
+	conn mysql2.MysqlConnection
 	err  error
 }
 
@@ -30,7 +30,7 @@ func (This *mysqlDB) Open() (b bool) {
 			b = false
 		}
 	}()
-	This.conn = mysql.NewConnect(This.uri)
+	This.conn = mysql2.NewConnect(This.uri)
 	return true
 }
 

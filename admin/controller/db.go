@@ -3,11 +3,11 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/brokercap/Bifrost/mysql"
 	"io"
 	"strings"
 	"time"
 
-	"github.com/brokercap/Bifrost/Bristol/mysql"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 	"github.com/brokercap/Bifrost/server"
 )

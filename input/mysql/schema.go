@@ -3,15 +3,15 @@ package mysql
 import (
 	"database/sql/driver"
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"github.com/sirupsen/logrus"
 	"strings"
 	"time"
 )
 
-func (c *MysqlInput) GetConn() mysql.MysqlConnection {
-	db := mysql.NewConnect(c.inputInfo.ConnectUri)
+func (c *MysqlInput) GetConn() mysql2.MysqlConnection {
+	db := mysql2.NewConnect(c.inputInfo.ConnectUri)
 	return db
 }
 

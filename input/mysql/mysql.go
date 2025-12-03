@@ -1,8 +1,8 @@
 package mysql
 
 import (
-	mysqlDriver "github.com/brokercap/Bifrost/Bristol/mysql"
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"log"
 	"sync"
 )
@@ -13,7 +13,7 @@ type MysqlInput struct {
 	sync.RWMutex
 	inputDriver.PluginDriverInterface
 	inputInfo        inputDriver.InputInfo
-	binlogDump       *mysqlDriver.BinlogDump
+	binlogDump       *mysql2.BinlogDump
 	reslut           chan error
 	status           inputDriver.StatusFlag
 	err              error
@@ -55,15 +55,15 @@ func (c *MysqlInput) Start(ch chan *inputDriver.PluginStatus) error {
 
 func (c *MysqlInput) Start0() error {
 	c.reslut = make(chan error, 1)
-	c.binlogDump = mysqlDriver.NewBinlogDump(
+	c.binlogDump = mysql2.NewBinlogDump(
 		c.inputInfo.ConnectUri,
 		c.MySQLCallback,
-		[]mysqlDriver.EventType{
-			mysqlDriver.WRITE_ROWS_EVENTv2, mysqlDriver.UPDATE_ROWS_EVENTv2, mysqlDriver.DELETE_ROWS_EVENTv2,
-			mysqlDriver.QUERY_EVENT,
-			mysqlDriver.XID_EVENT,
-			mysqlDriver.WRITE_ROWS_EVENTv1, mysqlDriver.UPDATE_ROWS_EVENTv1, mysqlDriver.DELETE_ROWS_EVENTv1,
-			mysqlDriver.WRITE_ROWS_EVENTv0, mysqlDriver.UPDATE_ROWS_EVENTv0, mysqlDriver.DELETE_ROWS_EVENTv0,
+		[]mysql2.EventType{
+			mysql2.WRITE_ROWS_EVENTv2, mysql2.UPDATE_ROWS_EVENTv2, mysql2.DELETE_ROWS_EVENTv2,
+			mysql2.QUERY_EVENT,
+			mysql2.XID_EVENT,
+			mysql2.WRITE_ROWS_EVENTv1, mysql2.UPDATE_ROWS_EVENTv1, mysql2.DELETE_ROWS_EVENTv1,
+			mysql2.WRITE_ROWS_EVENTv0, mysql2.UPDATE_ROWS_EVENTv0, mysql2.DELETE_ROWS_EVENTv0,
 		},
 		nil, nil)
 	c.binlogDump.SetNextEventID(c.eventID)

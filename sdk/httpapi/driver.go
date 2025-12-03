@@ -5,7 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -24,7 +24,7 @@ type resultStruct struct {
 
 type MySQLConn struct {
 	Uri string
-	db  mysql.MysqlConnection
+	db  mysql2.MysqlConnection
 }
 
 type MasterBinlogInfoStruct struct {
@@ -36,7 +36,7 @@ type MasterBinlogInfoStruct struct {
 }
 
 func (This *MySQLConn) DBConnect() {
-	This.db = mysql.NewConnect(This.Uri)
+	This.db = mysql2.NewConnect(This.Uri)
 }
 
 func (This *MySQLConn) GetBinLogInfo() MasterBinlogInfoStruct {

@@ -2,7 +2,7 @@ package history
 
 import (
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	"github.com/brokercap/Bifrost/mysql"
 	"github.com/brokercap/Bifrost/server"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"

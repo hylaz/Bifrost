@@ -3,14 +3,14 @@ package history
 import (
 	"database/sql/driver"
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
 )
 
-func DBConnect(uri string) mysql.MysqlConnection {
-	db := mysql.NewConnect(uri)
+func DBConnect(uri string) mysql2.MysqlConnection {
+	db := mysql2.NewConnect(uri)
 	return db
 }
 
@@ -34,7 +34,7 @@ type TableStruct struct {
 	Fsp               int // time,timestamp,datetime 毫秒保存的精度
 }
 
-func IsClickHouse(db mysql.MysqlConnection) (bool, error) {
+func IsClickHouse(db mysql2.MysqlConnection) (bool, error) {
 	sysTableFieldList, err := GetSchemaTableFieldList(db, "system", "tables", true)
 	if err != nil {
 		return false, err
@@ -45,7 +45,7 @@ func IsClickHouse(db mysql.MysqlConnection) (bool, error) {
 	return false, nil
 }
 
-func GetSchemaTableFieldList(db mysql.MysqlConnection, schema string, table string, isCK bool) ([]TableStruct, error) {
+func GetSchemaTableFieldList(db mysql2.MysqlConnection, schema string, table string, isCK bool) ([]TableStruct, error) {
 	FieldList := make([]TableStruct, 0)
 	var sql string
 	var valueLen int
@@ -167,7 +167,7 @@ func GetSchemaTableFieldList(db mysql.MysqlConnection, schema string, table stri
 	return FieldList, nil
 }
 
-func GetTablePriKeyMinAndMaxVal(db mysql.MysqlConnection, schema, table, PriKey, where string) (minId uint64, maxId uint64) {
+func GetTablePriKeyMinAndMaxVal(db mysql2.MysqlConnection, schema, table, PriKey, where string) (minId uint64, maxId uint64) {
 	sql := "SELECT MIN(`" + PriKey + "`),MAX(`" + PriKey + "`) FROM `" + schema + "`.`" + table + "`"
 	if where != "" {
 		sql += " WHERE " + where
@@ -191,7 +191,7 @@ func GetTablePriKeyMinAndMaxVal(db mysql.MysqlConnection, schema, table, PriKey,
 	return
 }
 
-func GetSchemaTableInfo(db mysql.MysqlConnection, schema string, table string) (tableInfo TableInfoStruct) {
+func GetSchemaTableInfo(db mysql2.MysqlConnection, schema string, table string) (tableInfo TableInfoStruct) {
 	sql := "SELECT `TABLE_TYPE`,`ENGINE`,`TABLE_ROWS` FROM information_schema.tables WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"
 	p := make([]driver.Value, 0)
 	p = append(p, schema)

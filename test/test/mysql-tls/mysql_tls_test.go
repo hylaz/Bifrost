@@ -4,7 +4,7 @@
 package mysql_tls
 
 import (
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	"github.com/brokercap/Bifrost/mysql"
 	"os"
 	"testing"
 )

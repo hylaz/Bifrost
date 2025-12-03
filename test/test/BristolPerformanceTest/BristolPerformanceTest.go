@@ -4,7 +4,7 @@ import (
 	"database/sql/driver"
 	"flag"
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"log"
 	"os"
 	"strconv"
@@ -16,7 +16,7 @@ var DbConn MySQLConn
 
 type MySQLConn struct {
 	Uri string
-	db  mysql.MysqlConnection
+	db  mysql2.MysqlConnection
 }
 
 type MasterBinlogInfoStruct struct {
@@ -28,7 +28,7 @@ type MasterBinlogInfoStruct struct {
 }
 
 func (This *MySQLConn) DBConnect() {
-	This.db = mysql.NewConnect(This.Uri)
+	This.db = mysql2.NewConnect(This.Uri)
 }
 
 func (This *MySQLConn) GetBinLogInfo() MasterBinlogInfoStruct {
@@ -116,7 +116,7 @@ func (This *MySQLConn) ExecSQL(sql string) {
 	return
 }
 
-func GetSchemaTableFieldAndVal(db mysql.MysqlConnection, schema string, table string) (sqlstring string, data []driver.Value) {
+func GetSchemaTableFieldAndVal(db mysql2.MysqlConnection, schema string, table string) (sqlstring string, data []driver.Value) {
 	sql := "SELECT COLUMN_NAME,COLUMN_DEFAULT,DATA_TYPE,EXTRA,COLUMN_TYPE FROM `information_schema`.`COLUMNS` WHERE TABLE_SCHEMA = '" + schema + "' AND  table_name = '" + table + "'"
 	data = make([]driver.Value, 0)
 	stmt, err := db.Prepare(sql)
@@ -381,14 +381,14 @@ func main() {
 	MyServerID := uint32(MastSeverId + 249)
 
 	reslut := make(chan error, 1)
-	BinlogDump := mysql.NewBinlogDump(
+	BinlogDump := mysql2.NewBinlogDump(
 		DataSource,
 		callback,
-		[]mysql.EventType{
+		[]mysql2.EventType{
 			//mysql.QUERY_EVENT,
-			mysql.WRITE_ROWS_EVENTv1, mysql.UPDATE_ROWS_EVENTv1, mysql.DELETE_ROWS_EVENTv1,
-			mysql.WRITE_ROWS_EVENTv0, mysql.UPDATE_ROWS_EVENTv0, mysql.DELETE_ROWS_EVENTv0,
-			mysql.WRITE_ROWS_EVENTv2, mysql.UPDATE_ROWS_EVENTv2, mysql.DELETE_ROWS_EVENTv2,
+			mysql2.WRITE_ROWS_EVENTv1, mysql2.UPDATE_ROWS_EVENTv1, mysql2.DELETE_ROWS_EVENTv1,
+			mysql2.WRITE_ROWS_EVENTv0, mysql2.UPDATE_ROWS_EVENTv0, mysql2.DELETE_ROWS_EVENTv0,
+			mysql2.WRITE_ROWS_EVENTv2, mysql2.UPDATE_ROWS_EVENTv2, mysql2.DELETE_ROWS_EVENTv2,
 		},
 		nil,
 		nil)
@@ -412,7 +412,7 @@ func main() {
 
 var insertCount int = 0
 
-func callback(data *mysql.EventReslut) {
+func callback(data *mysql2.EventReslut) {
 	insertCount++
 	if insertCount == *count {
 		overTime := time.Now().Unix()

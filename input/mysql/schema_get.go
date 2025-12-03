@@ -3,7 +3,7 @@ package mysql
 import (
 	"database/sql/driver"
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
@@ -13,8 +13,8 @@ func init() {
 
 }
 
-func DBConnect(uri string) mysql.MysqlConnection {
-	db := mysql.NewConnect(uri)
+func DBConnect(uri string) mysql2.MysqlConnection {
+	db := mysql2.NewConnect(uri)
 	return db
 }
 
@@ -26,7 +26,7 @@ type MasterBinlogInfoStruct struct {
 	Executed_Gtid_Set string
 }
 
-func GetBinLogInfo(db mysql.MysqlConnection) MasterBinlogInfoStruct {
+func GetBinLogInfo(db mysql2.MysqlConnection) MasterBinlogInfoStruct {
 	sql := "SHOW MASTER STATUS"
 	p := make([]driver.Value, 0)
 	rows, err := db.Query(sql, p)
@@ -68,7 +68,7 @@ func GetBinLogInfo(db mysql.MysqlConnection) MasterBinlogInfoStruct {
 	}
 }
 
-func GetServerId(db mysql.MysqlConnection) int {
+func GetServerId(db mysql2.MysqlConnection) int {
 	variablesMap := GetVariables(db, "server_id")
 	if _, ok := variablesMap["server_id"]; !ok {
 		return 0
@@ -77,7 +77,7 @@ func GetServerId(db mysql.MysqlConnection) int {
 	return ServerId
 }
 
-func GetVariables(db mysql.MysqlConnection, variablesValue string) (data map[string]string) {
+func GetVariables(db mysql2.MysqlConnection, variablesValue string) (data map[string]string) {
 	data = make(map[string]string, 0)
 	sql := "show variables like '" + variablesValue + "'"
 	p := make([]driver.Value, 0)
@@ -101,7 +101,7 @@ func GetVariables(db mysql.MysqlConnection, variablesValue string) (data map[str
 }
 
 // 获取当前用户授权语句
-func GetGrantsFor(db mysql.MysqlConnection) (grantSQL string, err error) {
+func GetGrantsFor(db mysql2.MysqlConnection) (grantSQL string, err error) {
 	sql := "SHOW GRANTS FOR CURRENT_USER()"
 	p := make([]driver.Value, 0)
 	rows, err := db.Query(sql, p)
@@ -123,7 +123,7 @@ func GetGrantsFor(db mysql.MysqlConnection) (grantSQL string, err error) {
 }
 
 // 校验用户是否拥有权限
-func CheckUserSlavePrivilege(db mysql.MysqlConnection) (err error) {
+func CheckUserSlavePrivilege(db mysql2.MysqlConnection) (err error) {
 	var grantSQL string
 	grantSQL, err = GetGrantsFor(db)
 	if err != nil {
@@ -160,7 +160,7 @@ func CheckUserSlavePrivilege(db mysql.MysqlConnection) (err error) {
 	return
 }
 
-func GetMySQLVersion(db mysql.MysqlConnection) string {
+func GetMySQLVersion(db mysql2.MysqlConnection) string {
 	sql := "SELECT version()"
 	p := make([]driver.Value, 0)
 	rows, err := db.Query(sql, p)

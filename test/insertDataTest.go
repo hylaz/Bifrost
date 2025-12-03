@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"log"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/brokercap/Bifrost/Bristol/mysql"
 )
 
 func main() {
@@ -49,12 +48,12 @@ func main() {
 	log.Println("end ", time.Now().Format("2006-01-02 15:04:05"))
 }
 
-func DBConnect(uri string) mysql.MysqlConnection {
-	db := mysql.NewConnect(uri)
+func DBConnect(uri string) mysql2.MysqlConnection {
+	db := mysql2.NewConnect(uri)
 	return db
 }
 
-func GetSchemaTableFieldAndVal(db mysql.MysqlConnection, schema string, table string, n int) (sqlstring string, data []driver.Value) {
+func GetSchemaTableFieldAndVal(db mysql2.MysqlConnection, schema string, table string, n int) (sqlstring string, data []driver.Value) {
 	sql := "SELECT COLUMN_NAME,COLUMN_DEFAULT,DATA_TYPE,EXTRA,COLUMN_TYPE FROM `information_schema`.`COLUMNS` WHERE TABLE_SCHEMA = '" + schema + "' AND  table_name = '" + table + "'"
 	data = make([]driver.Value, 0)
 	stmt, err := db.Prepare(sql)

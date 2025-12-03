@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"log"
 	"math/rand"
 	"os"
@@ -39,8 +39,8 @@ func proccessExit() {
 	fmt.Println("mysql server:", MysqlVersion)
 }
 
-func DBConnect(uri string) mysql.MysqlConnection {
-	db := mysql.NewConnect(uri)
+func DBConnect(uri string) mysql2.MysqlConnection {
+	db := mysql2.NewConnect(uri)
 	return db
 }
 
@@ -52,7 +52,7 @@ type MasterBinlogInfoStruct struct {
 	Executed_Gtid_Set string
 }
 
-func GetBinLogInfo(db mysql.MysqlConnection) MasterBinlogInfoStruct {
+func GetBinLogInfo(db mysql2.MysqlConnection) MasterBinlogInfoStruct {
 	sql := "SHOW MASTER STATUS"
 	stmt, err := db.Prepare(sql)
 	if err != nil {
@@ -98,7 +98,7 @@ func GetBinLogInfo(db mysql.MysqlConnection) MasterBinlogInfoStruct {
 	}
 }
 
-func GetServerId(db mysql.MysqlConnection) int {
+func GetServerId(db mysql2.MysqlConnection) int {
 	sql := "show variables like 'server_id'"
 	stmt, err := db.Prepare(sql)
 	if err != nil {
@@ -127,7 +127,7 @@ func GetServerId(db mysql.MysqlConnection) int {
 	return ServerId
 }
 
-func GetVariables(db mysql.MysqlConnection, variablesValue string) (data map[string]string) {
+func GetVariables(db mysql2.MysqlConnection, variablesValue string) (data map[string]string) {
 	data = make(map[string]string, 0)
 	sql := "show variables like '" + variablesValue + "'"
 	stmt, err := db.Prepare(sql)
@@ -156,7 +156,7 @@ func GetVariables(db mysql.MysqlConnection, variablesValue string) (data map[str
 	return
 }
 
-func GetMySQLVersion(db mysql.MysqlConnection) string {
+func GetMySQLVersion(db mysql2.MysqlConnection) string {
 	sql := "SELECT version()"
 	stmt, err := db.Prepare(sql)
 	if err != nil {
@@ -184,7 +184,7 @@ func GetMySQLVersion(db mysql.MysqlConnection) string {
 	return version
 }
 
-func ExecSQL(db mysql.MysqlConnection, sql string) {
+func ExecSQL(db mysql2.MysqlConnection, sql string) {
 	p := make([]driver.Value, 0)
 	_, err := db.Exec(sql, p)
 	if err != nil {
@@ -194,13 +194,13 @@ func ExecSQL(db mysql.MysqlConnection, sql string) {
 	return
 }
 
-func evenTypeName(e mysql.EventType) string {
+func evenTypeName(e mysql2.EventType) string {
 	switch e {
-	case mysql.WRITE_ROWS_EVENTv0, mysql.WRITE_ROWS_EVENTv1, mysql.WRITE_ROWS_EVENTv2:
+	case mysql2.WRITE_ROWS_EVENTv0, mysql2.WRITE_ROWS_EVENTv1, mysql2.WRITE_ROWS_EVENTv2:
 		return "insert"
-	case mysql.UPDATE_ROWS_EVENTv0, mysql.UPDATE_ROWS_EVENTv1, mysql.UPDATE_ROWS_EVENTv2:
+	case mysql2.UPDATE_ROWS_EVENTv0, mysql2.UPDATE_ROWS_EVENTv1, mysql2.UPDATE_ROWS_EVENTv2:
 		return "update"
-	case mysql.DELETE_ROWS_EVENTv0, mysql.DELETE_ROWS_EVENTv1, mysql.DELETE_ROWS_EVENTv2:
+	case mysql2.DELETE_ROWS_EVENTv0, mysql2.DELETE_ROWS_EVENTv1, mysql2.DELETE_ROWS_EVENTv2:
 		return "delete"
 	}
 	return fmt.Sprintf("%d", e)
@@ -288,7 +288,7 @@ func GetTimeAndNsen(dataType string, fsp int) string {
 	return value
 }
 
-func GetSchemaTableFieldAndVal(db mysql.MysqlConnection, schema string, table string) (autoIncrementField string, sqlstring string, data []driver.Value, columnData map[string]*Column, ColumnList []Column) {
+func GetSchemaTableFieldAndVal(db mysql2.MysqlConnection, schema string, table string) (autoIncrementField string, sqlstring string, data []driver.Value, columnData map[string]*Column, ColumnList []Column) {
 	sql := "SELECT COLUMN_NAME,COLUMN_KEY,COLUMN_TYPE,CHARACTER_SET_NAME,COLLATION_NAME,NUMERIC_SCALE,EXTRA,COLUMN_DEFAULT,DATA_TYPE,CHARACTER_MAXIMUM_LENGTH,NUMERIC_PRECISION,IS_NULLABLE FROM `information_schema`.`COLUMNS` WHERE TABLE_SCHEMA = '" + schema + "' AND  table_name = '" + table + "'"
 	data = make([]driver.Value, 0)
 	stmt, err := db.Prepare(sql)
@@ -765,7 +765,7 @@ var database string
 var longstring string
 var autoCreate bool
 
-func callback3(d *mysql.EventReslut) {
+func callback3(d *mysql2.EventReslut) {
 	if d.TableName != table {
 		log.Println(d)
 		return
@@ -867,7 +867,7 @@ func checkData(rowMap map[string]interface{}, logPrefix string) (AutoIncrementFi
 	return
 }
 
-func GetTableData(db mysql.MysqlConnection, SchemaName, TableName string, AutoIncrementField string, AutoIncrementValue []string, useStmt bool) ([]map[string]interface{}, error) {
+func GetTableData(db mysql2.MysqlConnection, SchemaName, TableName string, AutoIncrementField string, AutoIncrementValue []string, useStmt bool) ([]map[string]interface{}, error) {
 	var where string
 	var args = make([]driver.Value, 0)
 	if AutoIncrementField != "" && len(AutoIncrementValue) > 0 {
@@ -942,7 +942,7 @@ func GetTableData(db mysql.MysqlConnection, SchemaName, TableName string, AutoIn
 	return data, nil
 }
 
-func CheckSelectTableData(db mysql.MysqlConnection, SchemaName, TableName string, AutoIncrementField string, AutoIncrementValue []string, useStmt bool) {
+func CheckSelectTableData(db mysql2.MysqlConnection, SchemaName, TableName string, AutoIncrementField string, AutoIncrementValue []string, useStmt bool) {
 	data, err := GetTableData(db, SchemaName, TableName, AutoIncrementField, AutoIncrementValue, useStmt)
 	if err != nil {
 		log.Fatal("CheckSelectTableData err:", err)
@@ -1269,21 +1269,21 @@ func main() {
 	defer proccessExit()
 
 	reslut := make(chan error, 1)
-	BinlogDump := mysql.NewBinlogDump(
+	BinlogDump := mysql2.NewBinlogDump(
 		dataSource,
 		callback3,
-		[]mysql.EventType{
-			mysql.QUERY_EVENT,
-			mysql.WRITE_ROWS_EVENTv1, mysql.UPDATE_ROWS_EVENTv1, mysql.DELETE_ROWS_EVENTv1,
-			mysql.WRITE_ROWS_EVENTv0, mysql.UPDATE_ROWS_EVENTv0, mysql.DELETE_ROWS_EVENTv0,
-			mysql.WRITE_ROWS_EVENTv2, mysql.UPDATE_ROWS_EVENTv2, mysql.DELETE_ROWS_EVENTv2,
-			mysql.XID_EVENT,
+		[]mysql2.EventType{
+			mysql2.QUERY_EVENT,
+			mysql2.WRITE_ROWS_EVENTv1, mysql2.UPDATE_ROWS_EVENTv1, mysql2.DELETE_ROWS_EVENTv1,
+			mysql2.WRITE_ROWS_EVENTv0, mysql2.UPDATE_ROWS_EVENTv0, mysql2.DELETE_ROWS_EVENTv0,
+			mysql2.WRITE_ROWS_EVENTv2, mysql2.UPDATE_ROWS_EVENTv2, mysql2.DELETE_ROWS_EVENTv2,
+			mysql2.XID_EVENT,
 		},
 		nil,
 		nil)
 	BinlogDump.AddReplicateDoDb(database, "binlog_field_test")
 	log.Println("Version:", VERSION)
-	log.Println("Bristol version:", mysql.VERSION)
+	log.Println("Bristol version:", mysql2.VERSION)
 	log.Println("filename:", filename, "position:", position, "MasterGtid:", MasterGtid)
 	if MasterGtid != "" {
 		go BinlogDump.StartDumpBinlogGtid(MasterGtid, MyServerID, reslut)
@@ -1308,7 +1308,7 @@ func main() {
 	}
 }
 
-func StmtInsert(db mysql.MysqlConnection, sqlPre string, sqlValue []driver.Value) (driver.Result, error) {
+func StmtInsert(db mysql2.MysqlConnection, sqlPre string, sqlValue []driver.Value) (driver.Result, error) {
 	stmt, err := db.Prepare(sqlPre)
 	if err != nil {
 		log.Fatal(err, "sqlPre:", sqlPre)
@@ -1326,7 +1326,7 @@ func StmtInsert(db mysql.MysqlConnection, sqlPre string, sqlValue []driver.Value
 	return Result, err
 }
 
-func StmtSelect(db mysql.MysqlConnection, sql string, args []driver.Value) (driver.Rows, error) {
+func StmtSelect(db mysql2.MysqlConnection, sql string, args []driver.Value) (driver.Rows, error) {
 	stmt, err := db.Prepare(sql)
 	log.Println("StmtSelect sql:", sql)
 	log.Println("StmtSelect args:", args)
@@ -1340,11 +1340,11 @@ func StmtSelect(db mysql.MysqlConnection, sql string, args []driver.Value) (driv
 	return rows, err
 }
 
-func ExecInsert(db mysql.MysqlConnection, sqlPre string, sqlValue []driver.Value) (driver.Result, error) {
+func ExecInsert(db mysql2.MysqlConnection, sqlPre string, sqlValue []driver.Value) (driver.Result, error) {
 	result, err := db.Exec(sqlPre, sqlValue)
 	return result, err
 }
 
-func ExecQuery(db mysql.MysqlConnection, sql string, args []driver.Value) (driver.Rows, error) {
+func ExecQuery(db mysql2.MysqlConnection, sql string, args []driver.Value) (driver.Rows, error) {
 	return db.Query(sql, args)
 }

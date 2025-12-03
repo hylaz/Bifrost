@@ -7,6 +7,7 @@ import (
 	dbDriver "database/sql/driver"
 	"encoding/json"
 	"fmt"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	"log"
 	"math/rand"
 	"reflect"
@@ -15,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brokercap/Bifrost/Bristol/mysql"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/brokercap/Bifrost/sdk/pluginTestData"
 	"github.com/brokercap/Bifrost/server/history"
@@ -25,7 +25,7 @@ var url string = "root:root@tcp(bifrost_mysql_test:3306)/bifrost_test?charset=ut
 
 var SchemaName string = "bifrost_test"
 var TableName string = "binlog_field_test"
-var mysqlConn mysql.MysqlConnection
+var mysqlConn mysql2.MysqlConnection
 
 /*
 ddl
@@ -118,7 +118,7 @@ func beforeTest() {
 
 }
 
-func checkMySQLSupportJson(db mysql.MysqlConnection) bool {
+func checkMySQLSupportJson(db mysql2.MysqlConnection) bool {
 	stmt0, _ := db.Prepare("select version()")
 	rows0, _ := stmt0.Query([]dbDriver.Value{})
 	var MysqlVersion string
@@ -143,7 +143,7 @@ func checkMySQLSupportJson(db mysql.MysqlConnection) bool {
 	return true
 }
 
-func getCreateTableSql(db mysql.MysqlConnection) string {
+func getCreateTableSql(db mysql2.MysqlConnection) string {
 	if checkMySQLSupportJson(db) {
 		return "CREATE TABLE  IF NOT EXISTS `" + SchemaName + "`.`" + TableName + "`( `id0` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,`id` INT(11) UNSIGNED DEFAULT NULL , `testtinyint` TINYINT(4) NOT NULL DEFAULT '-1', `testsmallint` SMALLINT(6) NOT NULL DEFAULT '-2', `testmediumint` MEDIUMINT(8) NOT NULL DEFAULT '-3', `testint` INT(11) NOT NULL DEFAULT '-4', `testbigint` BIGINT(20) NOT NULL DEFAULT '-5', `testvarchar` VARCHAR(400) NOT NULL DEFAULT 'var', `testchar` CHAR(2) NOT NULL DEFAULT 'ch', `testenum` ENUM('en1', 'en2', 'en3') NOT NULL DEFAULT 'en1', `testset` SET('set1', 'set2', 'set3') NOT NULL DEFAULT 'set1', `testtime` TIME NOT NULL DEFAULT '00:00:00', `testdate` DATE NOT NULL DEFAULT '0000-00-00', `testyear` YEAR(4) NOT NULL DEFAULT '1989', `testtimestamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, `testdatetime` DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00', `testfloat` FLOAT(9, 2) NOT NULL DEFAULT '0.00', `testdouble` DOUBLE(9, 2) NOT NULL DEFAULT '0.00', `testdecimal` DECIMAL(9, 2) NOT NULL DEFAULT '0.00', `testtext` TEXT DEFAULT NULL, `testblob` BLOB DEFAULT NULL, `testbit` BIT(64)  NOT NULL DEFAULT b'0', `testbool` TINYINT(1) NOT NULL DEFAULT '0', `testmediumblob` MEDIUMBLOB DEFAULT NULL, `testlongblob` LONGBLOB DEFAULT NULL, `testtinyblob` TINYBLOB DEFAULT NULL, `test_unsinged_tinyint` TINYINT(4) UNSIGNED NOT NULL DEFAULT '1', `test_unsinged_smallint` SMALLINT(6) UNSIGNED NOT NULL DEFAULT '2', `test_unsinged_mediumint` MEDIUMINT(8) UNSIGNED NOT NULL DEFAULT '3', `test_unsinged_int` INT(11) UNSIGNED NOT NULL DEFAULT '4', `test_unsinged_bigint` BIGINT(20) UNSIGNED NOT  NULL  DEFAULT '5',`test_json` json,`event_type` VARCHAR(10) DEFAULT '', PRIMARY KEY (`id0`) ) ENGINE = MYISAM AUTO_INCREMENT = 0 CHARSET = utf8"
 	}
@@ -151,7 +151,7 @@ func getCreateTableSql(db mysql.MysqlConnection) string {
 }
 
 func initDBTable(delTable bool) {
-	c := mysql.NewConnect(url)
+	c := mysql2.NewConnect(url)
 	sql1 := "CREATE DATABASE IF NOT EXISTS  `" + SchemaName + "`"
 	_, err := c.Exec(sql1, []dbDriver.Value{})
 	if err != nil {
@@ -387,9 +387,9 @@ func TestDelAndChekcData_Integration(t *testing.T) {
 	}
 }
 
-func getMysqlConn() mysql.MysqlConnection {
+func getMysqlConn() mysql2.MysqlConnection {
 	if mysqlConn == nil {
-		mysqlConn = mysql.NewConnect(url)
+		mysqlConn = mysql2.NewConnect(url)
 	}
 	return mysqlConn
 }

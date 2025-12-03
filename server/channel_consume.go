@@ -2,8 +2,8 @@ package server
 
 import (
 	"fmt"
-	"github.com/brokercap/Bifrost/Bristol/mysql"
 	"github.com/brokercap/Bifrost/config"
+	mysql2 "github.com/brokercap/Bifrost/mysql"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"github.com/brokercap/Bifrost/server/count"
 	"github.com/sirupsen/logrus"
@@ -13,17 +13,17 @@ import (
 	"time"
 )
 
-func evenTypeName(e mysql.EventType) string {
+func evenTypeName(e mysql2.EventType) string {
 	switch e {
-	case mysql.WRITE_ROWS_EVENTv0, mysql.WRITE_ROWS_EVENTv1, mysql.WRITE_ROWS_EVENTv2:
+	case mysql2.WRITE_ROWS_EVENTv0, mysql2.WRITE_ROWS_EVENTv1, mysql2.WRITE_ROWS_EVENTv2:
 		return "insert"
-	case mysql.UPDATE_ROWS_EVENTv0, mysql.UPDATE_ROWS_EVENTv1, mysql.UPDATE_ROWS_EVENTv2:
+	case mysql2.UPDATE_ROWS_EVENTv0, mysql2.UPDATE_ROWS_EVENTv1, mysql2.UPDATE_ROWS_EVENTv2:
 		return "update"
-	case mysql.DELETE_ROWS_EVENTv0, mysql.DELETE_ROWS_EVENTv1, mysql.DELETE_ROWS_EVENTv2:
+	case mysql2.DELETE_ROWS_EVENTv0, mysql2.DELETE_ROWS_EVENTv1, mysql2.DELETE_ROWS_EVENTv2:
 		return "delete"
-	case mysql.QUERY_EVENT:
+	case mysql2.QUERY_EVENT:
 		return "sql"
-	case mysql.XID_EVENT:
+	case mysql2.XID_EVENT:
 		return "commit"
 	default:
 		break
@@ -142,7 +142,7 @@ func (consume *ConsumeChannel) sendToServerResult(ToServerInfo *ToServer, plugin
 
 }
 
-func (consume *ConsumeChannel) transferToPluginData(data *mysql.EventReslut) (pluginData *pluginDriver.PluginDataType) {
+func (consume *ConsumeChannel) transferToPluginData(data *mysql2.EventReslut) (pluginData *pluginDriver.PluginDataType) {
 	i := strings.IndexAny(data.BinlogFileName, ".")
 	intString := data.BinlogFileName[i+1:]
 	BinlogFileNum, _ := strconv.Atoi(intString)
