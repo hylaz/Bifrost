@@ -1,34 +1,18 @@
-/*
-Copyright [2018] [jc3wish]
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package kafka
 
 import (
 	"github.com/IBM/sarama"
-	"log"
-	"runtime/debug"
-	"strings"
-
 	inputDriver "github.com/brokercap/Bifrost/input/driver"
 	outputDriver "github.com/brokercap/Bifrost/plugin/driver"
+	"github.com/sirupsen/logrus"
+	"runtime/debug"
+	"strings"
 )
 
 const InputCustomerJsonData = "customer_json_kafka"
 
 func init() {
-	inputDriver.Register(InputCustomerJsonData, NewCustomerJsonDataInput, VERSION, BIFROST_VERSION)
+	inputDriver.Register(InputCustomerJsonData, NewCustomerJsonDataInput, Version, BifrostVersion)
 }
 
 type CustomerJsonDataInput struct {
@@ -113,7 +97,7 @@ func (c *CustomerJsonDataInput) tansferConfigKey2Row(config *string) (key2Row []
 	for _, v := range tmpArr {
 		tmpArr0 := strings.Split(v, ":")
 		if len(tmpArr0) > 2 {
-			log.Printf("[ERROR] input:%s childInit input.key2row: %s is not valid,use like a.b:name please! \n", InputCustomerJsonData, v)
+			logrus.Printf("[ERROR] input:%s childInit input.key2row: %s is not valid,use like a.b:name please! \n", InputCustomerJsonData, v)
 			continue
 		}
 		var name string
@@ -143,8 +127,8 @@ func (c *CustomerJsonDataInput) CallBack(kafkaMsg *sarama.ConsumerMessage) error
 	c.TransferConfig()
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("%s CallBack recover err:%+v \n", InputCustomerJsonData, err)
-			log.Println(string(debug.Stack()))
+			logrus.Printf("%s CallBack recover err:%+v \n", InputCustomerJsonData, err)
+			logrus.Println(string(debug.Stack()))
 		}
 	}()
 	err := c.pluginCustomerDataObj.Decoder(kafkaMsg.Value)
@@ -153,7 +137,7 @@ func (c *CustomerJsonDataInput) CallBack(kafkaMsg *sarama.ConsumerMessage) error
 	}
 	data := c.pluginCustomerDataObj.ToBifrostOutputPluginData()
 	if data == nil {
-		log.Printf("[ERROR] input:%s ToBifrostOutputPluginData nil, kafkaMsg:%+v \n", InputCustomerJsonData, string(kafkaMsg.Value))
+		logrus.Printf("[ERROR] input:%s ToBifrostOutputPluginData nil, kafkaMsg:%+v \n", InputCustomerJsonData, string(kafkaMsg.Value))
 		return nil
 	}
 	data.Gtid = c.SetTopicPartitionOffsetAndReturnGTID(kafkaMsg)

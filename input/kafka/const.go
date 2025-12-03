@@ -13,6 +13,6 @@ const DefaultBinlogPosition = 0
 const DefaultConsumerCount = 1
 
 const (
-	VERSION         string = "v2.0.0"
-	BIFROST_VERSION string = "v2.0.0"
+	Version        string = "v2.0.0"
+	BifrostVersion string = "v2.0.0"
 )
