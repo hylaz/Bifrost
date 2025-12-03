@@ -2,7 +2,6 @@ package count
 
 import (
 	"github.com/sirupsen/logrus"
-	"log"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -47,7 +46,7 @@ func channel_flowcount_sonsume(db string, channelId string, flowchan chan *FlowC
 			timer.Reset(5 * time.Second)
 			if data.Count < 0 {
 				if data.Count == -2 {
-					log.Println(db, channelId, "channel count close")
+					logrus.Println(db, channelId, "channel count close")
 					runtime.Goexit()
 					break
 				}
