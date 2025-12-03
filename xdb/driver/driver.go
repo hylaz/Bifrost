@@ -3,7 +3,7 @@ package driver
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"github.com/sirupsen/logrus"
 	"sync"
 )
 
@@ -40,7 +40,7 @@ type ListValue struct {
 func Register(name string, driver Driver, version string) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println(err)
+			logrus.Println(err)
 		}
 	}()
 	driversMu.Lock()
