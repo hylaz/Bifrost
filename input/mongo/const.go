@@ -11,8 +11,8 @@ const OnlyBatch = "OnlyBatch"
 const PerBatchLimit int = 1000
 
 const (
-	VERSION         string = "v2.4.0"
-	BIFROST_VERSION string = "v2.4.0"
+	Vesrion        string = "v2.4.0"
+	BifrostVesrion string = "v2.4.0"
 )
 
 const OutPutName = "mongo"

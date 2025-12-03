@@ -7,7 +7,7 @@ import (
 	_ "github.com/brokercap/Bifrost/xdb/redis"
 )
 
-const DEFAULT_PREFIX = "xdb"
+const DefaultPrefix = "xdb"
 
 type Client struct {
 	prefix string
@@ -21,63 +21,64 @@ func NewClient(name, uri string) (*Client, error) {
 	}
 	return &Client{
 		client: client,
-		prefix: DEFAULT_PREFIX,
+		prefix: DefaultPrefix,
 	}, nil
 }
 
-func (This *Client) SetPrefix(prefix string) *Client {
-	This.prefix = prefix
-	return This
+func (client *Client) SetPrefix(prefix string) *Client {
+	client.prefix = prefix
+	return client
 }
 
-func (This *Client) GetKeyVal(table, key string, data interface{}) ([]byte, error) {
-	myKey := []byte(This.prefix + ":" + table + ":" + key)
-	s, err := This.client.GetKeyVal(myKey)
+func (client *Client) GetKeyVal(table, key string, data interface{}) ([]byte, error) {
+	myKey := []byte(client.prefix + ":" + table + ":" + key)
+	s, err := client.client.GetKeyVal(myKey)
 	if err != nil {
 		return nil, err
 	}
-	err2 := json.Unmarshal(s, data)
-	if err2 != nil {
-		return nil, err2
+	err = json.Unmarshal(s, data)
+	if err != nil {
+		return nil, err
 	}
 	return s, err
 }
 
-func (This *Client) PutKeyVal(table, key string, data interface{}) error {
-	myKey := []byte(This.prefix + ":" + table + ":" + key)
+func (client *Client) PutKeyVal(table, key string, data interface{}) error {
+	myKey := []byte(client.prefix + ":" + table + ":" + key)
 	val, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	err = This.client.PutKeyVal(myKey, val)
+	err = client.client.PutKeyVal(myKey, val)
 	return err
 }
 
-func (This *Client) GetKeyValBytes(table, key string) ([]byte, error) {
-	myKey := []byte(This.prefix + ":" + table + ":" + key)
-	s, err := This.client.GetKeyVal(myKey)
+func (client *Client) GetKeyValBytes(table, key string) ([]byte, error) {
+	myKey := []byte(client.prefix + ":" + table + ":" + key)
+	s, err := client.client.GetKeyVal(myKey)
 	return s, err
 }
 
-func (This *Client) PutKeyValBytes(table, key string, val []byte) error {
-	myKey := []byte(This.prefix + ":" + table + ":" + key)
-	err := This.client.PutKeyVal(myKey, val)
+func (client *Client) PutKeyValBytes(table, key string, val []byte) error {
+	myKey := []byte(client.prefix + ":" + table + ":" + key)
+	err := client.client.PutKeyVal(myKey, val)
 	return err
 }
 
-func (This *Client) DelKeyVal(table, key string) error {
-	myKey := []byte(This.prefix + ":" + table + ":" + key)
-	return This.client.DelKeyVal(myKey)
+func (client *Client) DelKeyVal(table, key string) error {
+	myKey := []byte(client.prefix + ":" + table + ":" + key)
+	return client.client.DelKeyVal(myKey)
 }
 
-func (This *Client) GetListByKeyPrefix(table, key string, data interface{}) ([]driver.ListValue, error) {
-	prefix := This.prefix + ":" + table + ":"
+func (client *Client) GetListByKeyPrefix(table, key string, data interface{}) ([]driver.ListValue, error) {
+	prefix := client.prefix + ":" + table + ":"
 	prefixLen := len(prefix)
 	myKey := []byte(prefix + key)
-	s, err := This.client.GetListByKeyPrefix(myKey)
+	s, err := client.client.GetListByKeyPrefix(myKey)
 	if err != nil {
 		return s, err
 	}
+
 	var val = ""
 	for k, v := range s {
 		if data != nil {
@@ -97,6 +98,6 @@ func (This *Client) GetListByKeyPrefix(table, key string, data interface{}) ([]d
 	return s, err
 }
 
-func (This *Client) Close() error {
-	return This.client.Close()
+func (client *Client) Close() error {
+	return client.client.Close()
 }

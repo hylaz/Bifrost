@@ -28,9 +28,8 @@ type MongoInput struct {
 	PluginStatusChan chan *inputDriver.PluginStatus
 	eventID          uint64
 	callback         inputDriver.Callback
-
-	ctx          context.Context
-	ctxCancleFun context.CancelFunc
+	ctx              context.Context
+	ctxCancleFun     context.CancelFunc
 
 	lastOp *gtm.Op
 }

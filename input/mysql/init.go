@@ -5,10 +5,10 @@ import (
 )
 
 const (
-	VERSION         string = "v2.3.12"
-	BIFROST_VERSION string = "v2.3.12"
+	Vesrion        string = "v2.3.12"
+	BifrostVesrion string = "v2.3.12"
 )
 
 func init() {
-	inputDriver.Register("mysql", NewInputPlugin, VERSION, BIFROST_VERSION)
+	inputDriver.Register("mysql", NewInputPlugin, Vesrion, BifrostVesrion)
 }
