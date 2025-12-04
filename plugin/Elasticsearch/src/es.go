@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
-	elastic "github.com/olivere/elastic/v7"
+	"github.com/elastic/go-elasticsearch/v9"
+	"github.com/olivere/elastic/v7"
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"net/url"
@@ -15,18 +16,20 @@ import (
 	"time"
 )
 
-const VERSION = "v1.8.5-beta"
-const BIFROST_VERION = "v1.8.5"
+const Version = "v1.8.5"
+const BifrostVersion = "v1.8.5"
 
 func init() {
-	pluginDriver.Register("Elasticsearch", NewElasticsearchConn, VERSION, BIFROST_VERION)
+	pluginDriver.Register("Elasticsearch", NewElasticsearchConn, Version, BifrostVersion)
 }
 
 type ElasticsearchConn struct {
 	pluginDriver.PluginDriverInterface
 	Uri    string
 	status string
-	client *elastic.Client
+
+	client   *elastic.Client
+	esClient *elasticsearch.Client
 
 	err error
 	p   *PluginParam
@@ -54,7 +57,7 @@ type PluginParam struct {
 type EsServer struct {
 	User       string
 	Password   string
-	Urls       []string
+	UrlList    []string
 	Sniff      bool
 	Timeout    int
 	RetryCount int
@@ -129,7 +132,7 @@ func (conn *ElasticsearchConn) CheckUri() error {
 
 func (conn *ElasticsearchConn) getUriParam(uri string) (EsServerInfo *EsServer) {
 	EsServerInfo = &EsServer{}
-	EsServerInfo.Urls = make([]string, 0)
+	EsServerInfo.UrlList = make([]string, 0)
 	for _, httpUrl := range strings.Split(uri, ",") {
 		if httpUrl == "" {
 			continue
@@ -161,9 +164,9 @@ func (conn *ElasticsearchConn) getUriParam(uri string) (EsServerInfo *EsServer) 
 		}
 		index := strings.Index(httpUrl, "?")
 		if index > 0 {
-			EsServerInfo.Urls = append(EsServerInfo.Urls, httpUrl[0:index])
+			EsServerInfo.UrlList = append(EsServerInfo.UrlList, httpUrl[0:index])
 		} else {
-			EsServerInfo.Urls = append(EsServerInfo.Urls, httpUrl)
+			EsServerInfo.UrlList = append(EsServerInfo.UrlList, httpUrl)
 		}
 	}
 	if EsServerInfo.Timeout == 0 {
@@ -176,19 +179,24 @@ func (conn *ElasticsearchConn) getUriParam(uri string) (EsServerInfo *EsServer) 
 }
 
 func (conn *ElasticsearchConn) Connect() bool {
-
 	// This.Uri   http://127.0.0.1:9200?user=root&password=rootroot
-	EsServerInfo := conn.getUriParam(conn.Uri)
+	esServerInfo := conn.getUriParam(conn.Uri)
+	cfg := elasticsearch.Config{}
+	cfg.Addresses = esServerInfo.UrlList
+	cfg.Username = esServerInfo.User
+	esClient, err := elasticsearch.NewClient(cfg)
+	conn.esClient = esClient
+
 	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(EsServerInfo.Urls...),
-		elastic.SetSniff(EsServerInfo.Sniff),
+		elastic.SetURL(esServerInfo.UrlList...),
+		elastic.SetSniff(esServerInfo.Sniff),
 	}
-	if EsServerInfo.User != "" {
-		options = append(options, elastic.SetBasicAuth(EsServerInfo.User, EsServerInfo.Password))
+	if esServerInfo.User != "" {
+		options = append(options, elastic.SetBasicAuth(esServerInfo.User, esServerInfo.Password))
 	}
 
 	options = append(options, elastic.SetHttpClient(&http.Client{
-		Timeout: time.Duration(EsServerInfo.Timeout) * time.Second,
+		Timeout: time.Duration(esServerInfo.Timeout) * time.Second,
 	}))
 
 	client, err := elastic.NewClient(options...)
@@ -196,7 +204,7 @@ func (conn *ElasticsearchConn) Connect() bool {
 		conn.err = err
 		return false
 	}
-	conn.esServerInfo = EsServerInfo
+	conn.esServerInfo = esServerInfo
 	conn.client = client
 	conn.err = nil
 	conn.status = "running"
@@ -206,7 +214,7 @@ func (conn *ElasticsearchConn) Connect() bool {
 func (conn *ElasticsearchConn) ReConnect() bool {
 	defer func() {
 		if err := recover(); err != nil {
-			conn.err = fmt.Errorf(fmt.Sprint(err))
+			conn.err = fmt.Errorf("doing something failed: %w", err.(error))
 		}
 	}()
 	conn.Close()
@@ -215,12 +223,11 @@ func (conn *ElasticsearchConn) ReConnect() bool {
 }
 
 func (conn *ElasticsearchConn) Close() bool {
-	func() {
-		defer func() {
-			if err := recover(); err != nil {
-				return
-			}
-		}()
+
+	defer func() {
+		if err := recover(); err != nil {
+			logrus.Printf("panic recovered: %v", err)
+		}
 	}()
 	conn.status = "close"
 	conn.client = nil
@@ -228,26 +235,25 @@ func (conn *ElasticsearchConn) Close() bool {
 	return true
 }
 
-func (conn *ElasticsearchConn) GetVersion() (Version string, err error) {
-
+func (conn *ElasticsearchConn) GetVersion() (version string, err error) {
 	if conn.err != nil {
 		conn.Connect()
 	}
-	EsServerInfo := conn.getUriParam(conn.Uri)
-	Version, err = conn.client.ElasticsearchVersion(EsServerInfo.Urls[0])
-	return
-}
-
-func NewTableData() *TableDataStruct {
-	CommitData := make([]*pluginDriver.PluginDataType, 0)
-	CommitData = append(CommitData, nil)
-	return &TableDataStruct{
-		Data:       make([]*pluginDriver.PluginDataType, 0),
-		CommitData: CommitData,
+	res, err := conn.esClient.Info()
+	if err != nil {
+		logrus.Printf("es get info failed: %v", err)
+		return "", err
 	}
+	defer res.Body.Close()
+
+	var info map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&info); err != nil {
+		return "", err
+	}
+	version = info["version"].(map[string]string)["number"]
+	return version, nil
 }
 
-// 假如没有配置指定 PrimaryKey (es 中的文档ID) 的时候，将 原表中的 Pri 主键当作 es 的文档ID
 func (conn *ElasticsearchConn) initPrimaryKeys(data *pluginDriver.PluginDataType) {
 	if conn.p.PrimaryKey == "" {
 		conn.p.primaryKeys = data.Pri
@@ -281,12 +287,9 @@ func (conn *ElasticsearchConn) doCreateMapping() {
 }
 
 func (conn *ElasticsearchConn) doCommit(list []*pluginDriver.PluginDataType, n int) (errData *pluginDriver.PluginDataType, err error) {
-
 	if len(list) > 0 {
 		conn.p.EsIndexName = strings.ToLower(fmt.Sprint(pluginDriver.TransfeResult(conn.p.EsIndexName, list[0], 0)))
 	}
-
-	//This.doCreateMapping()
 	errData, err = conn.commitNormal(list, n)
 	return
 }
@@ -294,8 +297,7 @@ func (conn *ElasticsearchConn) doCommit(list []*pluginDriver.PluginDataType, n i
 func (conn *ElasticsearchConn) AutoCommit() (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
 	defer func() {
 		if err := recover(); err != nil {
-			e = fmt.Errorf(string(debug.Stack()))
-			conn.err = e
+			conn.err = fmt.Errorf(string(debug.Stack()))
 		}
 	}()
 	if conn.err != nil {
@@ -308,6 +310,7 @@ func (conn *ElasticsearchConn) AutoCommit() (LastSuccessCommitData *pluginDriver
 	if conn.err != nil {
 		logrus.Println("This.err:", conn.err)
 	}
+
 	n := len(conn.p.Data.Data)
 	if n == 0 {
 		return nil, nil, nil
@@ -371,13 +374,11 @@ func (conn *ElasticsearchConn) sendToCacheList(data *pluginDriver.PluginDataType
 	return nil, nil, nil
 }
 
-func (conn *ElasticsearchConn) Insert(data *pluginDriver.PluginDataType, retry bool) (
-	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+func (conn *ElasticsearchConn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
 	conn.initPrimaryKeys(data)
 	if len(conn.p.primaryKeys) == 0 {
 		return nil, data, fmt.Errorf("PrimaryKey is empty And Table No Pri!")
 	}
-
 	return conn.sendToCacheList(data, retry)
 }
 
@@ -427,7 +428,6 @@ func (conn *ElasticsearchConn) TimeOutCommit() (
 	return conn.AutoCommit()
 }
 
-// 设置跳过的位点
 func (conn *ElasticsearchConn) Skip(SkipData *pluginDriver.PluginDataType) error {
 	conn.p.SkipBinlogData = SkipData
 	return nil

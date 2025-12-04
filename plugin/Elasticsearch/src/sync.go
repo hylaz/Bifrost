@@ -2,6 +2,7 @@ package src
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"net/http"
@@ -22,7 +23,6 @@ func (conn *ElasticsearchConn) commitNormal(list []*pluginDriver.PluginDataType,
 			break
 		case "update":
 			reqs2, _ = conn.makeUpdateRequest(v.Rows)
-
 			break
 		case "delete":
 			reqs2, _ = conn.makeDeleteRequest(v.Rows)
@@ -62,7 +62,6 @@ func (conn *ElasticsearchConn) makeInsertRequest(rows []map[string]interface{}) 
 			Id(id).
 			Doc(values).DocAsUpsert(true).
 			Upsert(values)
-
 		reqs = append(reqs, req)
 	}
 	return reqs, nil
@@ -131,8 +130,6 @@ func (conn *ElasticsearchConn) sendBulkRequests(reqs []elastic.BulkableRequest) 
 	for _, item := range bulkResponse.Items {
 		for action, result := range item {
 			if conn.isSuccessful(result, action) {
-				// tags: [pipelineName, index, action(index/create/delete/update), status(200/400)].
-				// indices created in 6.x only allow a single-type per index, so we don't need the type as a tag.
 				var status int
 				if result.Status == http.StatusBadRequest {
 					logrus.Printf("[output_elasticsearch] The remote server returned an error: (400) Bad request, index: %s, action:%s ,status:%d ,details: %T.", result.Index, action, status, result.Error)
@@ -141,10 +138,9 @@ func (conn *ElasticsearchConn) sendBulkRequests(reqs []elastic.BulkableRequest) 
 					status = http.StatusOK
 				}
 			} else if result.Status == http.StatusTooManyRequests {
-				// when the server returns 429, it must be that all requests have failed.
-				return fmt.Errorf("[output_elasticsearch] The remote server returned an error: (429) Too Many Requests.")
+				return errors.New("[output_elasticsearch] The remote server returned an error: (429) Too Many Requests")
 			} else {
-				return fmt.Errorf("[output_elasticsearch] Received an error from server, status: [%d], index: %s, action:%s ,status:%d ,details: %+v.", result.Status, result.Index, action, result.Status, result.Error)
+				return fmt.Errorf("[output_elasticsearch] Received an error from server, status: [%d], index: %s, action:%s ,status:%d ,details: %+v", result.Status, result.Index, action, result.Status, result.Error)
 			}
 		}
 	}
