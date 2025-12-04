@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func (This *Conn) GetToDestDataType(data *pluginDriver.PluginDataType, fieldName string, nullable bool) (dataType string) {
+func (conn *MysqlConn) GetToDestDataType(data *pluginDriver.PluginDataType, fieldName string, nullable bool) (dataType string) {
 	if data.ColumnMapping != nil {
 		if columnType, ok := data.ColumnMapping[fieldName]; ok {
 			return This.TransferToTypeByColumnType_Starrocks(columnType, nullable)
@@ -21,7 +21,7 @@ func (This *Conn) GetToDestDataType(data *pluginDriver.PluginDataType, fieldName
 	return This.TransferToCkTypeByColumnData(data.Rows[len(data.Rows)-1][fieldName], nullable)
 }
 
-func (This *Conn) TransferToCreateTableSql(data *pluginDriver.PluginDataType) (sql string, isContinue bool) {
+func (conn *MysqlConn) TransferToCreateTableSql(data *pluginDriver.PluginDataType) (sql string, isContinue bool) {
 	if !This.IsStarRocks() {
 		log.Printf("[ERROR] output[%s] only starrocks server support auto create table \n", OutputName)
 		return "", false
@@ -78,19 +78,19 @@ func (This *Conn) TransferToCreateTableSql(data *pluginDriver.PluginDataType) (s
 	return
 }
 
-func (This *Conn) GetCreateTableEngine(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
+func (conn *MysqlConn) GetCreateTableEngine(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
 	if This.IsStarRocks() {
 		return This.GetCreateTableEngineByStarRocks(data)
 	}
 	return This.GetCreateTableEngineByMysql(data)
 }
 
-func (This *Conn) GetCreateTableEngineByMysql(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
+func (conn *MysqlConn) GetCreateTableEngineByMysql(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
 	err = errors.New("mysql not supported auto create table")
 	return
 }
 
-func (This *Conn) GetCreateTableEngineByStarRocks(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
+func (conn *MysqlConn) GetCreateTableEngineByStarRocks(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
 	engineSQL = " ENGINE=OLAP "
 	if This.p.SyncMode != SYNCMODE_LOG_APPEND && len(data.Pri) == 0 {
 		err = errors.New("no pri ,not supported")
@@ -113,7 +113,7 @@ func (This *Conn) GetCreateTableEngineByStarRocks(data *pluginDriver.PluginDataT
 	return
 }
 
-func (This *Conn) GetStarRocksIdsByPriList(pri []string) string {
+func (conn *MysqlConn) GetStarRocksIdsByPriList(pri []string) string {
 	if len(pri) > 0 {
 		return fmt.Sprintf("`%s`", strings.Replace(strings.Trim(fmt.Sprint(pri), "[]"), " ", "`,`", -1))
 	}
@@ -121,7 +121,7 @@ func (This *Conn) GetStarRocksIdsByPriList(pri []string) string {
 }
 
 // 在自动建表的情况下,并且是追加模式的时候 ,需要自动添加一个自增ID的主键
-func (This *Conn) GetCreateAutoIncreFields() (ids []string) {
+func (conn *MysqlConn) GetCreateAutoIncreFields() (ids []string) {
 	if !This.p.AutoTable {
 		return
 	}
@@ -133,14 +133,14 @@ func (This *Conn) GetCreateAutoIncreFields() (ids []string) {
 	//return []string{BifrostAutoInrcFieldName}
 }
 
-func (This *Conn) TransferToTypeByColumnType(columnType string, nullable bool) (toType string) {
+func (conn *MysqlConn) TransferToTypeByColumnType(columnType string, nullable bool) (toType string) {
 	if This.IsStarRocks() {
 		return This.TransferToTypeByColumnType_Starrocks(columnType, nullable)
 	}
 	return "TEXT"
 }
 
-func (This *Conn) TransferToTypeByColumnType_Starrocks(columnType string, nullable bool) (toType string) {
+func (conn *MysqlConn) TransferToTypeByColumnType_Starrocks(columnType string, nullable bool) (toType string) {
 	toType = "STRING"
 	// starrocks 测试下来当前是不支持 无符号数字,所以需要给相对应的无符号数字加大一个等级的空间
 	// uint64 则需要使用STRING
@@ -288,7 +288,7 @@ func (This *Conn) TransferToTypeByColumnType_Starrocks(columnType string, nullab
 	return
 }
 
-func (This *Conn) TransferDataType(columnType, dataType, destDataType string, defaultLen int) string {
+func (conn *MysqlConn) TransferDataType(columnType, dataType, destDataType string, defaultLen int) string {
 	dataTypeLen := This.GetDataTypeLength(columnType, dataType)
 	if dataTypeLen == 0 {
 		dataTypeLen = defaultLen
@@ -302,7 +302,7 @@ func (This *Conn) TransferDataType(columnType, dataType, destDataType string, de
 	return fmt.Sprintf("%s(%d)", destDataType, dataTypeLen)
 }
 
-func (This *Conn) GetDataTypeLength(columnType, dataType string) int {
+func (conn *MysqlConn) GetDataTypeLength(columnType, dataType string) int {
 	columnTypePrefix := fmt.Sprintf("%s(", dataType)
 	i := strings.Index(columnType, columnTypePrefix)
 	if i < 0 {
@@ -314,7 +314,7 @@ func (This *Conn) GetDataTypeLength(columnType, dataType string) int {
 	return lenInt
 }
 
-func (This *Conn) TransferToCkTypeByColumnData(v interface{}, nullable bool) (toType string) {
+func (conn *MysqlConn) TransferToCkTypeByColumnData(v interface{}, nullable bool) (toType string) {
 	toType = "STRING"
 	var err error
 	if v != nil {

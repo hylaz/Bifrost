@@ -22,3 +22,6 @@ const (
 const BifrostAutoInrcFieldName = "bifrost_auto_inrc_id"
 
 const OutputName = "mysql"
+
+const Version = "v2.3.12"
+const BifrostVersion = "v2.3.12"

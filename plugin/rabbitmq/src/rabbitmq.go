@@ -9,20 +9,20 @@ import (
 	"strconv"
 )
 
-const VERSION = "v1.6.0"
-const BIFROST_VERION = "v1.0.0"
+const Version = "v1.6.0"
+const BifrostVersion = "v1.0.0"
 
 func init() {
-	pluginDriver.Register("rabbitmq", NewConn, VERSION, BIFROST_VERION)
+	pluginDriver.Register("rabbitmq", NewRabbitmqConn, Version, BifrostVersion)
 }
 
-type Conn struct {
+type RabbitmqConn struct {
 	pluginDriver.PluginDriverInterface
-	uri         *string
+	uri         string
 	status      string
 	conn        *amqp.Connection
 	ch          *amqp.Channel
-	ch_nowait   *amqp.Channel
+	chNoWait    *amqp.Channel
 	confirmWait chan amqp.Confirmation
 	p           *PluginParam
 	err         error
@@ -57,77 +57,78 @@ type PluginParam struct {
 	BifrostFilterQuery bool // bifrost server 保留,是否过滤sql事件
 }
 
-func NewConn() pluginDriver.Driver {
-	f := &Conn{status: "close"}
+func NewRabbitmqConn() pluginDriver.Driver {
+	f := &RabbitmqConn{status: "close"}
 	return f
 }
 
-func (This *Conn) SetOption(uri *string, param map[string]interface{}) {
-	This.uri = uri
+func (rabbitmqConn *RabbitmqConn) SetOption(uri *string, param map[string]interface{}) {
+	rabbitmqConn.uri = *uri
 	return
 }
 
-func (This *Conn) Open() error {
-	This.Connect()
+func (rabbitmqConn *RabbitmqConn) Open() error {
+	rabbitmqConn.Connect()
 	return nil
 }
 
-func (This *Conn) GetUriExample() string {
+func (rabbitmqConn *RabbitmqConn) GetUriExample() string {
 	return "amqp://guest:guest@localhost:5672/MyVhost"
 }
 
-func (This *Conn) CheckUri() error {
-	This.Connect()
-	if This.err != nil {
-		return This.err
+func (rabbitmqConn *RabbitmqConn) CheckUri() error {
+	rabbitmqConn.Connect()
+	if rabbitmqConn.err != nil {
+		return rabbitmqConn.err
 	}
-	This.Close()
+	rabbitmqConn.Close()
 	return nil
 }
 
-func (This *Conn) Connect() bool {
+func (rabbitmqConn *RabbitmqConn) Connect() bool {
 	var err error
-	This.conn, err = amqp.Dial(*This.uri)
+	rabbitmqConn.conn, err = amqp.Dial(rabbitmqConn.uri)
 	if err != nil {
-		This.err = err
-		This.status = "close"
+		rabbitmqConn.err = err
+		rabbitmqConn.status = "close"
 		return false
 	}
-	This.queueMap = make(map[string]bool, 0)
-	This.exchangeMap = make(map[string]bool, 0)
-	This.bindMap = make(map[string]bool, 0)
-	This.err = nil
-	This.status = "running"
+	rabbitmqConn.queueMap = make(map[string]bool)
+	rabbitmqConn.exchangeMap = make(map[string]bool)
+	rabbitmqConn.bindMap = make(map[string]bool)
+	rabbitmqConn.err = nil
+	rabbitmqConn.status = "running"
 	return true
 }
 
-func (This *Conn) getChannel(confirm bool) *amqp.Channel {
-	if confirm == true {
-		if This.ch == nil {
-			This.ch, This.err = This.conn.Channel()
-			if This.err != nil {
-				This.ch = nil
+func (rabbitmqConn *RabbitmqConn) getChannel(confirm bool) *amqp.Channel {
+	if confirm {
+		if rabbitmqConn.ch == nil {
+			rabbitmqConn.ch, rabbitmqConn.err = rabbitmqConn.conn.Channel()
+			if rabbitmqConn.err != nil {
+				rabbitmqConn.ch = nil
 				return nil
 			}
-			This.ch.Confirm(false)
-			This.confirmWait = make(chan amqp.Confirmation, 1)
-			This.ch.NotifyPublish(This.confirmWait)
+			rabbitmqConn.ch.Confirm(false)
+			rabbitmqConn.confirmWait = make(chan amqp.Confirmation, 1)
+			rabbitmqConn.ch.NotifyPublish(rabbitmqConn.confirmWait)
 		}
-		return This.ch
+		return rabbitmqConn.ch
 	} else {
-		if This.ch_nowait == nil {
-			This.ch_nowait, This.err = This.conn.Channel()
-			if This.err != nil {
-				This.ch_nowait = nil
+
+		if rabbitmqConn.chNoWait == nil {
+			rabbitmqConn.chNoWait, rabbitmqConn.err = rabbitmqConn.conn.Channel()
+			if rabbitmqConn.err != nil {
+				rabbitmqConn.chNoWait = nil
 				return nil
 			}
 		}
-		return This.ch_nowait
+		return rabbitmqConn.chNoWait
 	}
 }
-func (This *Conn) ReConnect() bool {
-	This.Close()
-	r := This.Connect()
+func (rabbitmqConn *RabbitmqConn) ReConnect() bool {
+	rabbitmqConn.Close()
+	r := rabbitmqConn.Connect()
 	if r == true {
 		return true
 	} else {
@@ -135,8 +136,8 @@ func (This *Conn) ReConnect() bool {
 	}
 }
 
-func (This *Conn) Close() bool {
-	if This.conn == nil {
+func (rabbitmqConn *RabbitmqConn) Close() bool {
+	if rabbitmqConn.conn == nil {
 		return true
 	}
 	func() {
@@ -146,23 +147,23 @@ func (This *Conn) Close() bool {
 				return
 			}
 		}()
-		if This.ch != nil {
-			This.ch.Close()
-			This.ch = nil
+		if rabbitmqConn.ch != nil {
+			rabbitmqConn.ch.Close()
+			rabbitmqConn.ch = nil
 		}
-		if This.ch_nowait != nil {
-			This.ch_nowait.Close()
-			This.ch_nowait = nil
+		if rabbitmqConn.chNoWait != nil {
+			rabbitmqConn.chNoWait.Close()
+			rabbitmqConn.chNoWait = nil
 		}
-		This.conn.Close()
+		rabbitmqConn.conn.Close()
 	}()
-	This.conn = nil
-	This.status = "close"
-	This.err = fmt.Errorf("closed")
+	rabbitmqConn.conn = nil
+	rabbitmqConn.status = "close"
+	rabbitmqConn.err = fmt.Errorf("closed")
 	return true
 }
 
-func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
+func (rabbitmqConn *RabbitmqConn) GetParam(p interface{}) (*PluginParam, error) {
 	s, err := json.Marshal(p)
 	if err != nil {
 		return nil, err
@@ -180,114 +181,114 @@ func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
 	} else {
 		param.deliveryMode = 1
 	}
-	This.p = &param
+	rabbitmqConn.p = &param
 	return &param, nil
 }
 
-func (This *Conn) SetParam(p interface{}) (interface{}, error) {
+func (rabbitmqConn *RabbitmqConn) SetParam(p interface{}) (interface{}, error) {
 	if p == nil {
 		return nil, fmt.Errorf("param is nil")
 	}
 	switch p.(type) {
 	case *PluginParam:
-		This.p = p.(*PluginParam)
+		rabbitmqConn.p = p.(*PluginParam)
 		return p, nil
 	default:
-		return This.GetParam(p)
+		return rabbitmqConn.GetParam(p)
 	}
 }
 
-func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data)
+func (rabbitmqConn *RabbitmqConn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return rabbitmqConn.sendToList(data)
 }
 
-func (This *Conn) Update(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data)
+func (rabbitmqConn *RabbitmqConn) Update(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return rabbitmqConn.sendToList(data)
 }
 
-func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data)
+func (rabbitmqConn *RabbitmqConn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return rabbitmqConn.sendToList(data)
 }
 
-func (This *Conn) Query(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data)
+func (rabbitmqConn *RabbitmqConn) Query(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return rabbitmqConn.sendToList(data)
 }
 
-func (This *Conn) Commit(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, err error) {
-	if This.p.BifrostFilterQuery {
+func (rabbitmqConn *RabbitmqConn) Commit(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, err error) {
+	if rabbitmqConn.p.BifrostFilterQuery {
 		return data, nil, nil
 	}
-	LastSuccessCommitData, ErrData, err = This.sendToList(data)
+	LastSuccessCommitData, ErrData, err = rabbitmqConn.sendToList(data)
 	if err == nil {
 		LastSuccessCommitData = data
 	}
 	return
 }
 
-func (This *Conn) Declare(Queue *string, Exchange *string, RoutingKey *string) error {
-	ch := This.getChannel(This.p.Confirm)
+func (rabbitmqConn *RabbitmqConn) Declare(Queue string, Exchange string, RoutingKey string) error {
+	ch := rabbitmqConn.getChannel(rabbitmqConn.p.Confirm)
 	if ch == nil {
-		This.status = "close"
-		return This.err
+		rabbitmqConn.status = "close"
+		return rabbitmqConn.err
 	}
-	if _, ok := This.queueMap[*Queue]; !ok {
-		p := make(amqp.Table, 0)
-		_, err := ch.QueueDeclare(*Queue, This.p.Queue.Durable, This.p.Queue.AutoDelete, false, false, p)
+	if _, ok := rabbitmqConn.queueMap[Queue]; !ok {
+		p := make(amqp.Table)
+		_, err := ch.QueueDeclare(Queue, rabbitmqConn.p.Queue.Durable, rabbitmqConn.p.Queue.AutoDelete, false, false, p)
 		if err != nil {
 			return err
 		}
-		This.queueMap[*Queue] = true
-	}
-
-	if _, ok := This.exchangeMap[*Exchange]; !ok {
-		p := make(amqp.Table, 0)
-		err := ch.ExchangeDeclare(*Exchange, This.p.Exchange.Type, This.p.Exchange.Durable, false, false, false, p)
-		if err != nil {
-			return err
-		}
-		This.exchangeMap[*Exchange] = true
+		rabbitmqConn.queueMap[Queue] = true
 	}
 
-	key := *Queue + "-" + *Exchange + "-" + *RoutingKey
-	if _, ok := This.bindMap[key]; !ok {
-		p := make(amqp.Table, 0)
-		err := ch.QueueBind(*Queue, *RoutingKey, *Exchange, false, p)
+	if _, ok := rabbitmqConn.exchangeMap[Exchange]; !ok {
+		p := make(amqp.Table)
+		err := ch.ExchangeDeclare(Exchange, rabbitmqConn.p.Exchange.Type, rabbitmqConn.p.Exchange.Durable, false, false, false, p)
 		if err != nil {
 			return err
 		}
-		This.bindMap[key] = true
+		rabbitmqConn.exchangeMap[Exchange] = true
+	}
+
+	key := Queue + "-" + Exchange + "-" + RoutingKey
+	if _, ok := rabbitmqConn.bindMap[key]; !ok {
+		p := make(amqp.Table)
+		err := ch.QueueBind(Queue, RoutingKey, Exchange, false, p)
+		if err != nil {
+			return err
+		}
+		rabbitmqConn.bindMap[key] = true
 	}
 	return nil
 }
 
-func (This *Conn) sendToList(data *pluginDriver.PluginDataType) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	if This.status != "running" {
-		This.ReConnect()
-		if This.status != "running" {
-			return nil, data, This.err
+func (rabbitmqConn *RabbitmqConn) sendToList(data *pluginDriver.PluginDataType) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	if rabbitmqConn.status != "running" {
+		rabbitmqConn.ReConnect()
+		if rabbitmqConn.status != "running" {
+			return nil, data, rabbitmqConn.err
 		}
 	}
 	c, err := json.Marshal(data)
 	if err != nil {
-		This.err = err
+		rabbitmqConn.err = err
 		return nil, data, err
 	}
 	var queuename string
 	var exchange string
 	var routingkey string
 	index := len(data.Rows) - 1
-	exchange = fmt.Sprint(pluginDriver.TransfeResult(This.p.Exchange.Name, data, index))
-	routingkey = fmt.Sprint(pluginDriver.TransfeResult(This.p.RoutingKey, data, index))
-	if This.p.Declare == true {
-		queuename = fmt.Sprint(pluginDriver.TransfeResult(This.p.Queue.Name, data, index))
-		if err := This.Declare(&queuename, &exchange, &routingkey); err != nil {
+	exchange = fmt.Sprint(pluginDriver.TransfeResult(rabbitmqConn.p.Exchange.Name, data, index))
+	routingkey = fmt.Sprint(pluginDriver.TransfeResult(rabbitmqConn.p.RoutingKey, data, index))
+	if rabbitmqConn.p.Declare == true {
+		queuename = fmt.Sprint(pluginDriver.TransfeResult(rabbitmqConn.p.Queue.Name, data, index))
+		if err := rabbitmqConn.Declare(queuename, exchange, routingkey); err != nil {
 			return nil, data, err
 		}
 	}
-	if This.p.Confirm == true {
-		_, err = This.SendAndWait(&exchange, &routingkey, &c, This.p.deliveryMode)
+	if rabbitmqConn.p.Confirm {
+		_, err = rabbitmqConn.SendAndWait(exchange, routingkey, c, rabbitmqConn.p.deliveryMode)
 	} else {
-		_, err = This.SendAndNoWait(&exchange, &routingkey, &c, This.p.deliveryMode)
+		_, err = rabbitmqConn.SendAndNoWait(exchange, routingkey, c, rabbitmqConn.p.deliveryMode)
 	}
 	if err != nil {
 		return nil, data, err
@@ -295,6 +296,6 @@ func (This *Conn) sendToList(data *pluginDriver.PluginDataType) (*pluginDriver.P
 	return nil, nil, nil
 }
 
-func (This *Conn) TimeOutCommit() (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+func (rabbitmqConn *RabbitmqConn) TimeOutCommit() (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
 	return nil, nil, nil
 }

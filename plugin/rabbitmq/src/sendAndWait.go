@@ -6,66 +6,66 @@ import (
 	"time"
 )
 
-func (This *Conn) SendAndWait(exchange *string, routingkey *string, c *[]byte, DeliveryMode uint8) (bool, error) {
-	ch := This.getChannel(true)
+func (rabbitmqConn *RabbitmqConn) SendAndWait(exchange string, routingKey string, body []byte, DeliveryMode uint8) (bool, error) {
+	ch := rabbitmqConn.getChannel(true)
 	if ch == nil {
-		This.status = "close"
-		return false, This.err
+		rabbitmqConn.status = "close"
+		return false, rabbitmqConn.err
 	}
 	err := ch.Publish(
-		*exchange,   // exchange
-		*routingkey, // routing key
-		true,        // mandatory
-		false,       // immediate
+		exchange,   // exchange
+		routingKey, // routing key
+		true,       // mandatory
+		false,      // immediate
 		amqp.Publishing{
 			ContentType:  "text/plain",
-			Body:         *c,
+			Body:         body,
 			DeliveryMode: DeliveryMode,
-			Expiration:   This.p.expir,
+			Expiration:   rabbitmqConn.p.expir,
 		})
 	if err != nil {
-		This.err = err
-		This.status = "close"
+		rabbitmqConn.err = err
+		rabbitmqConn.status = "close"
 		return false, err
 	}
 	timer := time.NewTimer(10 * time.Second)
 	select {
-	case d := <-This.confirmWait:
+	case d := <-rabbitmqConn.confirmWait:
 		if d.DeliveryTag >= 0 {
 			timer.Stop()
 			return true, nil
 		}
-		This.err = fmt.Errorf("unkonw err")
+		rabbitmqConn.err = fmt.Errorf("unkonw err")
 		break
 	case <-timer.C:
-		This.err = fmt.Errorf("server no response")
+		rabbitmqConn.err = fmt.Errorf("server no response")
 		break
 	}
 	timer.Stop()
-	This.status = "close"
-	return false, This.err
+	rabbitmqConn.status = "close"
+	return false, rabbitmqConn.err
 }
 
-func (This *Conn) SendAndNoWait(exchange *string, routingkey *string, c *[]byte, DeliveryMode uint8) (bool, error) {
-	ch := This.getChannel(false)
+func (rabbitmqConn *RabbitmqConn) SendAndNoWait(exchange string, routingkey string, body []byte, DeliveryMode uint8) (bool, error) {
+	ch := rabbitmqConn.getChannel(false)
 	if ch == nil {
-		This.status = "close"
-		return false, This.err
+		rabbitmqConn.status = "close"
+		return false, rabbitmqConn.err
 	}
 	err := ch.Publish(
-		*exchange,   // exchange
-		*routingkey, // routing key
-		false,       // mandatory
-		false,       // immediate
+		exchange,   // exchange
+		routingkey, // routing key
+		false,      // mandatory
+		false,      // immediate
 		amqp.Publishing{
 			ContentType:  "text/plain",
-			Body:         *c,
+			Body:         body,
 			DeliveryMode: DeliveryMode,
-			Expiration:   This.p.expir,
+			Expiration:   rabbitmqConn.p.expir,
 		})
 	if err != nil {
-		This.err = err
-		This.status = "close"
+		rabbitmqConn.err = err
+		rabbitmqConn.status = "close"
 		return false, err
 	}
 	return true, nil

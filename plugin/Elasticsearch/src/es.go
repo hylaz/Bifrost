@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
+	elastic "github.com/olivere/elastic/v7"
 	"log"
 	"net/http"
 	"net/url"
@@ -11,10 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	elastic "github.com/olivere/elastic/v7"
-
-	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 )
 
 const VERSION = "v1.8.5-beta"

@@ -17,12 +17,12 @@ const Version = "v1.6.0"
 const BifrostVersion = "v1.6.0"
 
 func init() {
-	pluginDriver.Register("MongoDB", NewConn, Version, BifrostVersion)
+	pluginDriver.Register("MongoDB", NewMongoConn, Version, BifrostVersion)
 }
 
-type Conn struct {
+type MongoConn struct {
 	pluginDriver.PluginDriverInterface
-	Uri    *string
+	Uri    string
 	status string
 	client *mongo.Client
 	err    error
@@ -38,36 +38,36 @@ type PluginParam struct {
 	indexName   string
 }
 
-func NewConn() pluginDriver.Driver {
-	f := &Conn{status: "close", err: fmt.Errorf("close")}
+func NewMongoConn() pluginDriver.Driver {
+	f := &MongoConn{status: "close", err: fmt.Errorf("close")}
 	return f
 }
 
-func (This *Conn) SetOption(uri *string, param map[string]interface{}) {
-	This.Uri = uri
+func (mongoConn *MongoConn) SetOption(uri *string, param map[string]interface{}) {
+	mongoConn.Uri = *uri
 	return
 }
 
-func (This *Conn) Open() error {
-	This.Connect()
+func (mongoConn *MongoConn) Open() error {
+	mongoConn.Connect()
 	return nil
 }
 
-func (This *Conn) GetUriExample() string {
+func (mongoConn *MongoConn) GetUriExample() string {
 	return "[mongodb://][user:pass@]host1[:port1][,host2[:port2],...][/database][?options]"
 }
 
-func (This *Conn) CheckUri() error {
-	This.Connect()
-	if This.status == "running" {
-		This.Close()
+func (mongoConn *MongoConn) CheckUri() error {
+	mongoConn.Connect()
+	if mongoConn.status == "running" {
+		mongoConn.Close()
 		return nil
 	} else {
-		return This.err
+		return mongoConn.err
 	}
 }
 
-func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
+func (mongoConn *MongoConn) GetParam(p interface{}) (*PluginParam, error) {
 	s, err := json.Marshal(p)
 	if err != nil {
 		return nil, err
@@ -84,132 +84,116 @@ func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
 	param.indexName = "bifrost_unique_index"
 	param.primaryKeys = strings.Split(param.PrimaryKey, ",")
 	param.hadIndexMap = make(map[string]bool, 0)
-	This.p = &param
+	mongoConn.p = &param
 	return &param, nil
 }
 
-func (This *Conn) SetParam(p interface{}) (interface{}, error) {
+func (mongoConn *MongoConn) SetParam(p interface{}) (interface{}, error) {
 	if p == nil {
 		return nil, fmt.Errorf("param is nil")
 	}
 	switch p.(type) {
 	case *PluginParam:
-		This.p = p.(*PluginParam)
+		mongoConn.p = p.(*PluginParam)
 		return p, nil
 	default:
-		return This.GetParam(p)
+		return mongoConn.GetParam(p)
 	}
 }
 
-func (This *Conn) Connect() bool {
+func (mongoConn *MongoConn) Connect() bool {
 	var err error
-	opt := options.Client().ApplyURI(*This.Uri)
-	This.client, err = mongo.Connect(context.Background(), opt)
+	opt := options.Client().ApplyURI(mongoConn.Uri)
+	mongoConn.client, err = mongo.Connect(context.Background(), opt)
 	if err != nil {
-		This.err = err
-		This.status = "close"
+		mongoConn.err = err
+		mongoConn.status = "close"
 		return false
 	}
-	This.err = nil
-	This.status = "running"
+	mongoConn.err = nil
+	mongoConn.status = "running"
 	return true
 }
 
-func (This *Conn) ReConnect() bool {
+func (mongoConn *MongoConn) ReConnect() bool {
 	defer func() {
 		if err := recover(); err != nil {
-			This.err = fmt.Errorf(fmt.Sprint(err))
+			mongoConn.err = fmt.Errorf(fmt.Sprint(err))
 		}
 	}()
-	This.Close()
-	This.Connect()
+	mongoConn.Close()
+	mongoConn.Connect()
 	return true
 }
 
-func (This *Conn) Close() bool {
+func (mongoConn *MongoConn) Close() bool {
+
 	func() {
 		defer func() {
 			if err := recover(); err != nil {
 				return
 			}
 		}()
-		if This.client != nil {
-			This.client.Disconnect(context.Background())
+		if mongoConn.client != nil {
+			mongoConn.client.Disconnect(context.Background())
 		}
 	}()
-	This.status = "close"
-	This.client = nil
 
-	This.err = fmt.Errorf("close")
+	mongoConn.status = "close"
+	mongoConn.client = nil
+	mongoConn.err = fmt.Errorf("close")
 	return true
 }
 
-// 假如没有配置指定 PrimaryKey (mongodb 中的文档ID) 的时候，将 原表中的 Pri 主键当作 MongoDB 的文档ID
-func (This *Conn) initPrimaryKeys(data *pluginDriver.PluginDataType) {
-	if This.p.PrimaryKey == "" {
-		This.p.primaryKeys = data.Pri
+func (mongoConn *MongoConn) initPrimaryKeys(data *pluginDriver.PluginDataType) {
+	if mongoConn.p.PrimaryKey == "" {
+		mongoConn.p.primaryKeys = data.Pri
 	}
 }
 
-func (This *Conn) createIndex(c *mongo.Collection) {
+func (mongoConn *MongoConn) createIndex(c *mongo.Collection) {
 
 	indexTableKey := c.Database().Name() + "#" + c.Name()
-	if _, ok := This.p.hadIndexMap[indexTableKey]; !ok {
-		//indexs, err := c.Indexes()
-		//if err == nil {
-		//	//假如表里已经拥有了指定索引名称的索引，而不再创建索引
-		//	//假如这里创建了2个字段的索引，用户又在mongodb server修改了这个索引，是很有可能会出问题的，使用的时候，需要注意
-		//	for _, indexInfo := range indexs {
-		//		if indexInfo.Name == This.p.indexName {
-		//			This.p.hadIndexMap[indexTableKey] = true
-		//			return
-		//		}
-		//	}
-		//}
-		//index := mgo.Index{Key: This.p.primaryKeys, Unique: true, Name: This.p.indexName}
-		//This.p.hadIndexMap[indexTableKey] = true
-		//c.EnsureIndex(index)
-
-		keys := make(bson.D, 0, len(This.p.primaryKeys))
-		for _, key := range This.p.primaryKeys {
+	if _, ok := mongoConn.p.hadIndexMap[indexTableKey]; !ok {
+		keys := make(bson.D, 0, len(mongoConn.p.primaryKeys))
+		for _, key := range mongoConn.p.primaryKeys {
 			keys = append(keys, bson.E{Key: key, Value: 1}) // 1 表示升序
 		}
 
 		mod := mongo.IndexModel{
 			Keys:    keys,
-			Options: options.Index().SetName(This.p.indexName).SetUnique(true),
+			Options: options.Index().SetName(mongoConn.p.indexName).SetUnique(true),
 		}
 		c.Indexes().CreateOne(context.Background(), mod)
 	}
 }
 
-func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
-	if This.err != nil {
-		This.Connect()
+func (mongoConn *MongoConn) Insert(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
+	if mongoConn.err != nil {
+		mongoConn.Connect()
 	}
-	if This.err != nil {
-		return nil, data, This.err
+	if mongoConn.err != nil {
+		return nil, data, mongoConn.err
 	}
-	This.initPrimaryKeys(data)
-	if len(This.p.primaryKeys) == 0 {
+	mongoConn.initPrimaryKeys(data)
+	if len(mongoConn.p.primaryKeys) == 0 {
 		return nil, data, fmt.Errorf("PrimaryKey is empty And Table No Pri!")
 	}
 	n := len(data.Rows) - 1
-	SchemaName := fmt.Sprint(pluginDriver.TransfeResult(This.p.SchemaName, data, n))
-	TableName := fmt.Sprint(pluginDriver.TransfeResult(This.p.TableName, data, n))
+	SchemaName := fmt.Sprint(pluginDriver.TransfeResult(mongoConn.p.SchemaName, data, n))
+	TableName := fmt.Sprint(pluginDriver.TransfeResult(mongoConn.p.TableName, data, n))
 	defer func() {
 		if err := recover(); err != nil {
 			LastSuccessCommitData = nil
 			e = fmt.Errorf(string(debug.Stack()))
-			This.err = e
+			mongoConn.err = e
 			logrus.Println(e)
 			return
 		}
 	}()
-	c := This.client.Database(SchemaName).Collection(TableName)
-	//This.createIndex(c)
+	c := mongoConn.client.Database(SchemaName).Collection(TableName)
 	k := make(bson.M, 1)
-	for _, key := range This.p.primaryKeys {
+	for _, key := range mongoConn.p.primaryKeys {
 		if _, ok := data.Rows[n][key]; ok {
 			k[key] = data.Rows[n][key]
 		} else {
@@ -224,37 +208,35 @@ func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (LastSuc
 	return nil, nil, nil
 }
 
-func (This *Conn) Update(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
-	return This.Insert(data, retry)
+func (mongoConn *MongoConn) Update(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
+	return mongoConn.Insert(data, retry)
 }
 
-func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
-	if This.err != nil {
-		This.Connect()
+func (mongoConn *MongoConn) Del(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
+	if mongoConn.err != nil {
+		mongoConn.Connect()
 	}
-	if This.err != nil {
-		return nil, data, This.err
+	if mongoConn.err != nil {
+		return nil, data, mongoConn.err
 	}
-	This.initPrimaryKeys(data)
-	if len(This.p.primaryKeys) == 0 {
+	mongoConn.initPrimaryKeys(data)
+	if len(mongoConn.p.primaryKeys) == 0 {
 		return nil, data, fmt.Errorf("PrimaryKey is empty And Table No Pri!")
 	}
 	defer func() {
 		if err := recover(); err != nil {
 			LastSuccessCommitData = nil
 			e = fmt.Errorf(string(debug.Stack()))
-			This.err = e
+			mongoConn.err = e
 			logrus.Println(string(debug.Stack()))
 			return
 		}
 	}()
-	SchemaName := fmt.Sprint(pluginDriver.TransfeResult(This.p.SchemaName, data, 0))
-	TableName := fmt.Sprint(pluginDriver.TransfeResult(This.p.TableName, data, 0))
-	//c := This.conn.DB(SchemaName).C(TableName)
-	c := This.client.Database(SchemaName).Collection(TableName)
-	//This.createIndex(c)
+	SchemaName := fmt.Sprint(pluginDriver.TransfeResult(mongoConn.p.SchemaName, data, 0))
+	TableName := fmt.Sprint(pluginDriver.TransfeResult(mongoConn.p.TableName, data, 0))
+	c := mongoConn.client.Database(SchemaName).Collection(TableName)
 	k := make(bson.M, 1)
-	for _, key := range This.p.primaryKeys {
+	for _, key := range mongoConn.p.primaryKeys {
 		if _, ok := data.Rows[0][key]; ok {
 			k[key] = data.Rows[0][key]
 		} else {
@@ -268,10 +250,10 @@ func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (LastSucces
 	return nil, nil, nil
 }
 
-func (This *Conn) Query(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
+func (mongoConn *MongoConn) Query(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
 	return data, nil, nil
 }
 
-func (This *Conn) Commit(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
+func (mongoConn *MongoConn) Commit(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
 	return data, nil, nil
 }

@@ -3,48 +3,47 @@ package src
 import (
 	"fmt"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
-func (This *Conn) StarrocksNotAutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType, e error) {
-	This.conn.err = This.conn.Begin()
-	if This.conn.err != nil {
-		return nil, This.conn.err
+func (conn *MysqlConn) StarrocksNotAutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType, e error) {
+	conn.db.err = conn.db.Begin()
+	if conn.db.err != nil {
+		return nil, conn.db.err
 	}
-	switch This.p.SyncMode {
+	switch conn.p.SyncMode {
 	case SYNCMODE_NORMAL:
-		ErrData = This.CommitNormal(list)
+		ErrData = conn.CommitNormal(list)
 		break
 	case SYNCMODE_LOG_UPDATE:
-		ErrData = This.CommitLogMod_Update(list)
+		ErrData = conn.CommitLogMod_Update(list)
 		break
 	case SYNCMODE_LOG_APPEND:
-		ErrData = This.CommitLogMod_Append(list)
+		ErrData = conn.CommitLogMod_Append(list)
 		break
 	default:
-		This.err = fmt.Errorf("同步模式ERROR:%s", This.p.SyncMode)
+		conn.err = fmt.Errorf("同步模式ERROR:%s", conn.p.SyncMode)
 		break
 	}
-	if This.conn.err != nil {
-		This.err = This.conn.err
-		//log.Println("plugin mysql conn.err",This.err)
-		return ErrData, This.err
+	if conn.db.err != nil {
+		conn.err = conn.db.err
+		return ErrData, conn.err
 	}
-	if This.err != nil {
-		This.conn.err = This.conn.Rollback()
-		log.Println("plugin mysql err", This.err)
-		return ErrData, This.err
+	if conn.err != nil {
+		conn.db.err = conn.db.Rollback()
+		logrus.Println("plugin mysql err", conn.err)
+		return ErrData, conn.err
 	}
-	This.conn.err = This.conn.Commit()
-	This.StmtClose()
-	if This.conn.err != nil {
-		return nil, This.conn.err
+	conn.db.err = conn.db.Commit()
+	conn.StmtClose()
+	if conn.db.err != nil {
+		return nil, conn.db.err
 	}
 	return
 }
 
 // 自动创建表的提交
-func (This *Conn) StarrocksAutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType, e error) {
+func (conn *MysqlConn) StarrocksAutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType, e error) {
 	dataMap := make(map[string][]*pluginDriver.PluginDataType, 0)
 	var ok bool
 	for _, PluginData := range list {
@@ -55,45 +54,45 @@ func (This *Conn) StarrocksAutoTableCommit(list []*pluginDriver.PluginDataType) 
 		dataMap[key] = append(dataMap[key], PluginData)
 	}
 	for _, data := range dataMap {
-		p, err := This.getAutoTableFieldType(data[0])
+		p, err := conn.getAutoTableFieldType(data[0])
 		if err != nil {
 			return data[0], e
 		}
-		This.p.Field = p.Field
-		This.p.fieldCount = len(p.Field)
-		This.p.schemaAndTable = p.SchemaAndTable
-		This.p.PriKey = p.PriKey
-		This.p.toPriKey = p.ToPriKey
-		This.p.fromPriKey = p.FromPriKey
-		This.conn.err = This.conn.Begin()
-		if This.conn.err != nil {
-			This.err = This.conn.err
+		conn.p.Field = p.Field
+		conn.p.fieldCount = len(p.Field)
+		conn.p.schemaAndTable = p.SchemaAndTable
+		conn.p.PriKey = p.PriKey
+		conn.p.toPriKey = p.ToPriKey
+		conn.p.fromPriKey = p.FromPriKey
+		conn.db.err = conn.db.Begin()
+		if conn.db.err != nil {
+			conn.err = conn.db.err
 			break
 		}
-		switch This.p.SyncMode {
+		switch conn.p.SyncMode {
 		case SYNCMODE_NORMAL:
-			ErrData = This.CommitNormal(data)
+			ErrData = conn.CommitNormal(data)
 			break
 		case SYNCMODE_LOG_UPDATE:
-			ErrData = This.CommitLogMod_Update(data)
+			ErrData = conn.CommitLogMod_Update(data)
 			break
 		case SYNCMODE_LOG_APPEND:
-			ErrData = This.CommitLogMod_Append(data)
+			ErrData = conn.CommitLogMod_Append(data)
 			break
 		default:
-			This.err = fmt.Errorf("同步模式ERROR:%s", This.p.SyncMode)
+			conn.err = fmt.Errorf("同步模式ERROR:%s", conn.p.SyncMode)
 			break
 		}
-		if This.conn.err != nil {
-			This.err = This.conn.err
+		if conn.db.err != nil {
+			conn.err = conn.db.err
 		}
-		if This.err != nil {
-			This.conn.err = This.conn.Rollback()
-			return ErrData, This.err
+		if conn.err != nil {
+			conn.db.err = conn.db.Rollback()
+			return ErrData, conn.err
 		}
-		This.conn.err = This.conn.Commit()
-		This.StmtClose()
-		if This.conn.err != nil {
+		conn.db.err = conn.db.Commit()
+		conn.StmtClose()
+		if conn.db.err != nil {
 			break
 		}
 	}

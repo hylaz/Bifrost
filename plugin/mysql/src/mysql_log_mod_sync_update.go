@@ -1,10 +1,3 @@
-/*
-日志模式同步
-update 转成 insert on update
-insert 转成 replace into
-delete 转成 insert on update
-只要是同一条数据，只要有遍历过，后面遍历出来的数据，则不再进行操作
-*/
 package src
 
 import (
@@ -18,7 +11,7 @@ type opLog struct {
 	EventType string
 }
 
-func (This *Conn) CommitLogMod_Update(list []*pluginDriver.PluginDataType) (errData *pluginDriver.PluginDataType) {
+func (conn *MysqlConn) CommitLogMod_Update(list []*pluginDriver.PluginDataType) (errData *pluginDriver.PluginDataType) {
 
 	//因为数据是有序写到list里的，里有 update,delete,insert，所以这里我们反向遍历
 

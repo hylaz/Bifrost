@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
-	"log"
+	"github.com/sirupsen/logrus"
 	"reflect"
 	"runtime/debug"
 	"strconv"
@@ -16,11 +16,11 @@ import (
 
 type TableDataStruct struct {
 	Data       []*pluginDriver.PluginDataType
-	CommitData []*pluginDriver.PluginDataType // commit 提交的数据列表，Data 每 BatchSize 数据量划分为一个最后提交的commit
+	CommitData []*pluginDriver.PluginDataType
 }
 
 func init() {
-	pluginDriver.Register(OutputName, NewConn, VERSION, BIFROST_VERION)
+	pluginDriver.Register(OutputName, NewMysqlConn, Version, BifrostVersion)
 }
 
 type fieldStruct struct {
@@ -39,11 +39,11 @@ func NewTableData() *TableDataStruct {
 	}
 }
 
-type Conn struct {
-	uri              *string
+type MysqlConn struct {
+	uri              string
 	status           string
 	p                *PluginParam
-	conn             *mysqlDB
+	db               *mysqlDB
 	err              error
 	serverVersion    string
 	isTiDB           bool
@@ -84,27 +84,27 @@ type PluginParam0 struct {
 	ToPriKey       string        // 目标库的 主键 字段
 }
 
-func NewConn() pluginDriver.Driver {
-	return &Conn{status: "close"}
+func NewMysqlConn() pluginDriver.Driver {
+	return &MysqlConn{status: "close"}
 }
 
-func (This *Conn) SetOption(uri *string, param map[string]interface{}) {
-	This.uri = uri
+func (conn *MysqlConn) SetOption(uri *string, param map[string]interface{}) {
+	conn.uri = *uri
 	return
 }
 
-func (This *Conn) Open() error {
-	This.Connect()
+func (conn *MysqlConn) Open() error {
+	conn.Connect()
 	return nil
 }
 
-func (This *Conn) CheckUri() error {
-	This.Connect()
-	if This.conn.err != nil {
-		return This.conn.err
+func (conn *MysqlConn) CheckUri() error {
+	conn.Connect()
+	if conn.db.err != nil {
+		return conn.db.err
 	}
-	if This.conn == nil {
-		This.Close()
+	if conn.db == nil {
+		conn.Close()
 		return fmt.Errorf("connect error")
 	}
 
@@ -113,29 +113,30 @@ func (This *Conn) CheckUri() error {
 		defer func() {
 			return
 		}()
-		schemaList = This.conn.GetSchemaList()
+		schemaList = conn.db.GetSchemaList()
 	}()
+
 	if len(schemaList) == 0 {
-		This.Close()
+		conn.Close()
 		return fmt.Errorf("schema count is 0 (not in system)")
 	}
 	return nil
 }
 
-func (This *Conn) GetUriExample() string {
+func (conn *MysqlConn) GetUriExample() string {
 	return "root:root@tcp(127.0.0.1:3306)/test"
 }
 
-func (This *Conn) initTableInfo() {
-	if This.p.AutoTable == false {
-		This.initToMysqlTableFieldType()
+func (conn *MysqlConn) initTableInfo() {
+	if conn.p.AutoTable == false {
+		conn.initToMysqlTableFieldType()
 	} else {
-		This.p.tableMap = make(map[string]*PluginParam0, 0)
-		This.initToDatabaseMap()
+		conn.p.tableMap = make(map[string]*PluginParam0, 0)
+		conn.initToDatabaseMap()
 	}
 }
 
-func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
+func (conn *MysqlConn) GetParam(p interface{}) (*PluginParam, error) {
 	s, err := json.Marshal(p)
 	if err != nil {
 		return nil, err
@@ -162,43 +163,43 @@ func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
 		param.SyncMode = SYNCMODE_NORMAL
 	}
 
-	This.p = &param
-	This.initTableInfo()
-	This.initVersion()
-	if !This.isTiDB {
+	conn.p = &param
+	conn.initTableInfo()
+	conn.initVersion()
+	if !conn.isTiDB {
 		// 假如是TiDB,则说明肯定不是starrocks
-		This.initIsStarrock()
+		conn.initIsStarrock()
 	}
-	return This.p, nil
+	return conn.p, nil
 }
 
-func (This *Conn) SetParam(p interface{}) (interface{}, error) {
+func (conn *MysqlConn) SetParam(p interface{}) (interface{}, error) {
 	if p == nil {
 		return nil, fmt.Errorf("param is nil")
 	}
 	switch p.(type) {
 	case *PluginParam:
-		This.p = p.(*PluginParam)
+		conn.p = p.(*PluginParam)
 		return p, nil
 	default:
-		return This.GetParam(p)
+		return conn.GetParam(p)
 	}
 }
 
-func (This *Conn) initToMysqlTableFieldType() {
+func (conn *MysqlConn) initToMysqlTableFieldType() {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println(string(debug.Stack()))
-			This.conn.err = fmt.Errorf(string(debug.Stack()))
+			logrus.Println(string(debug.Stack()))
+			conn.db.err = fmt.Errorf(string(debug.Stack()))
 		}
 	}()
-	if This.p == nil {
+	if conn.p == nil {
 		return
 	}
 
-	fields := This.conn.GetTableFields(This.p.Schema, This.p.Table)
-	if This.conn.err != nil {
-		This.err = This.conn.err
+	fields := conn.db.GetTableFields(conn.p.Schema, conn.p.Table)
+	if conn.db.err != nil {
+		conn.err = conn.db.err
 		return
 	}
 	if len(fields) == 0 {
@@ -209,12 +210,12 @@ func (This *Conn) initToMysqlTableFieldType() {
 		ckFieldsMap[v.COLUMN_NAME] = v
 	}
 	list := make([]fieldStruct, 0)
-	for k, v := range This.p.Field {
-		This.p.Field[k].ToFieldType = ckFieldsMap[v.ToField].DATA_TYPE
+	for k, v := range conn.p.Field {
+		conn.p.Field[k].ToFieldType = ckFieldsMap[v.ToField].DATA_TYPE
 		if strings.ToLower(ckFieldsMap[v.ToField].EXTRA) == "auto_increment" {
-			This.p.Field[k].ToFieldDefault = nil
+			conn.p.Field[k].ToFieldDefault = nil
 			if v.FromMysqlField != "" {
-				list = append(list, This.p.Field[k])
+				list = append(list, conn.p.Field[k])
 			}
 		} else {
 			// mysql 里的默认值是在 insert 语句执行的时候，sql 里没有指定字段名的情况下，自动填充
@@ -222,44 +223,44 @@ func (This *Conn) initToMysqlTableFieldType() {
 			// 但是 bf 同步写数据的时候，源端是可能为 null ，目标表 是 not null default 值
 			// 因为后面 tansfer 函数只使用了 default 值，没做是否可以为 null 判断 ，这里进行统一判断 可以为 null 的情况下，默认值为 null
 			if strings.ToUpper(ckFieldsMap[v.ToField].IS_NULLABLE) == "YES" {
-				This.p.Field[k].ToFieldDefault = nil
+				conn.p.Field[k].ToFieldDefault = nil
 			} else {
-				This.p.Field[k].ToFieldDefault = ckFieldsMap[v.ToField].COLUMN_DEFAULT
+				conn.p.Field[k].ToFieldDefault = ckFieldsMap[v.ToField].COLUMN_DEFAULT
 			}
-			list = append(list, This.p.Field[k])
+			list = append(list, conn.p.Field[k])
 		}
 	}
-	This.p.Field = list
-	This.p.fieldCount = len(list)
+	conn.p.Field = list
+	conn.p.fieldCount = len(list)
 }
 
-func (This *Conn) GetSchemaName(data *pluginDriver.PluginDataType) (SchemaName string) {
-	if This.p.Schema == "" {
+func (conn *MysqlConn) GetSchemaName(data *pluginDriver.PluginDataType) (SchemaName string) {
+	if conn.p.Schema == "" {
 		SchemaName = data.SchemaName
 	} else {
-		SchemaName = This.p.Schema
+		SchemaName = conn.p.Schema
 	}
 	return
 }
 
-func (This *Conn) GetTableName(data *pluginDriver.PluginDataType) (TableName string) {
-	if This.p.Table == "" {
+func (conn *MysqlConn) GetTableName(data *pluginDriver.PluginDataType) (TableName string) {
+	if conn.p.Table == "" {
 		TableName = data.TableName
 	} else {
-		TableName = This.p.Table
+		TableName = conn.p.Table
 	}
 	return
 }
 
-func (This *Conn) GetSchemaAndTable(data *pluginDriver.PluginDataType) (SchemaName, TableName, SchemaAndTable string) {
-	SchemaName = This.GetSchemaName(data)
-	TableName = This.GetTableName(data)
+func (conn *MysqlConn) GetSchemaAndTable(data *pluginDriver.PluginDataType) (SchemaName, TableName, SchemaAndTable string) {
+	SchemaName = conn.GetSchemaName(data)
+	TableName = conn.GetTableName(data)
 	SchemaAndTable = fmt.Sprintf("`%s`.`%s`", SchemaName, TableName)
 	return
 }
 
-func (This *Conn) CreateTableAndGetTableFieldsType(data *pluginDriver.PluginDataType) (tableFields *PluginParam0, err error) {
-	tableFields, _ = This.getAutoTableFieldType(data)
+func (conn *MysqlConn) CreateTableAndGetTableFieldsType(data *pluginDriver.PluginDataType) (tableFields *PluginParam0, err error) {
+	tableFields, _ = conn.getAutoTableFieldType(data)
 	// 这里无视 是否返回 error, 因为有可能会返回 查不到表的 错误,这里直接跳过这个错误,后面遇到错误会进进行再处理
 	/*
 		if err != nil {
@@ -271,40 +272,40 @@ func (This *Conn) CreateTableAndGetTableFieldsType(data *pluginDriver.PluginData
 	}
 	// 这里无视是否创建成功,如果失败了,后面的建表逻辑,也肯定报错
 
-	_ = This.conn.CreateDatabase(This.GetSchemaName(data))
-	createTableSql, isContinue := This.TransferToCreateTableSql(data)
+	_ = conn.db.CreateDatabase(conn.GetSchemaName(data))
+	createTableSql, isContinue := conn.TransferToCreateTableSql(data)
 	if createTableSql == "" {
 		if isContinue {
 			return nil, nil
 		} else {
-			log.Printf("[ERROR] output[%s] get create table sql is empty,data:%+v \n", OutputName, data)
+			logrus.Printf("[ERROR] output[%s] get create table sql is empty,data:%+v \n", OutputName, data)
 			return nil, errors.New("get create table sql is empty")
 		}
 	}
 
-	err = This.conn.Exec(createTableSql)
+	err = conn.db.Exec(createTableSql)
 	if err != nil {
 		return nil, err
 	}
-	tableFields, err = This.getAutoTableFieldType(data)
+	tableFields, err = conn.getAutoTableFieldType(data)
 	return
 }
 
-func (This *Conn) getAutoTableFieldType(data *pluginDriver.PluginDataType) (*PluginParam0, error) {
+func (conn *MysqlConn) getAutoTableFieldType(data *pluginDriver.PluginDataType) (*PluginParam0, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println(string(debug.Stack()))
-			This.conn.err = fmt.Errorf(string(debug.Stack()))
+			logrus.Println(string(debug.Stack()))
+			conn.db.err = fmt.Errorf(string(debug.Stack()))
 		}
 	}()
-	var SchemaName, TableName, key = This.GetSchemaAndTable(data)
-	if _, ok := This.p.tableMap[key]; ok {
-		return This.p.tableMap[key], nil
+	var SchemaName, TableName, key = conn.GetSchemaAndTable(data)
+	if _, ok := conn.p.tableMap[key]; ok {
+		return conn.p.tableMap[key], nil
 	}
-	fields := This.conn.GetTableFields(SchemaName, TableName)
-	if This.conn.err != nil {
-		This.err = This.conn.err
-		return nil, This.err
+	fields := conn.db.GetTableFields(SchemaName, TableName)
+	if conn.db.err != nil {
+		conn.err = conn.db.err
+		return nil, conn.err
 	}
 	if len(fields) == 0 {
 		err := fmt.Errorf("SchemaName:%s, TableName:%s not exsit", SchemaName, data.TableName)
@@ -387,128 +388,128 @@ func (This *Conn) getAutoTableFieldType(data *pluginDriver.PluginDataType) (*Plu
 		FromPriKey:     fromPriKey,
 		ToPriKey:       toPriKey,
 	}
-	This.p.tableMap[key] = p
+	conn.p.tableMap[key] = p
 	return p, nil
 }
 
 // 查出 目标库 里所有database,放到 map 中，用于缓存
-func (This *Conn) initToDatabaseMap() {
-	This.p.toDatabaseMap = make(map[string]bool, 0)
+func (conn *MysqlConn) initToDatabaseMap() {
+	conn.p.toDatabaseMap = make(map[string]bool, 0)
 	defer func() {
 		if err := recover(); err != nil {
 			return
 		}
 	}()
-	SchemaList := This.conn.GetSchemaList()
+	SchemaList := conn.db.GetSchemaList()
 	for _, Name := range SchemaList {
-		This.p.toDatabaseMap[Name] = true
+		conn.p.toDatabaseMap[Name] = true
 	}
 	return
 }
 
-func (This *Conn) initVersion() {
+func (conn *MysqlConn) initVersion() {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Println("plugin mysql initVersion recover:", err, string(debug.Stack()))
+			logrus.Println("plugin mysql initVersion recover:", err, string(debug.Stack()))
 			return
 		}
 	}()
-	if This.conn == nil {
+	if conn.db == nil {
 		return
 	}
-	This.serverVersion = This.conn.SelectVersion()
-	if strings.Contains(This.serverVersion, "TiDB") {
-		This.isTiDB = true
+	conn.serverVersion = conn.db.SelectVersion()
+	if strings.Contains(conn.serverVersion, "TiDB") {
+		conn.isTiDB = true
 	}
 }
 
-func (This *Conn) Connect() bool {
-	This.conn = NewMysqlDBConn(*This.uri)
-	if This.conn.err == nil {
-		This.conn.conn.Exec("SET NAMES utf8mb4", []dbDriver.Value{})
+func (conn *MysqlConn) Connect() bool {
+	conn.db = NewMysqlDBConn(conn.uri)
+	if conn.db.err == nil {
+		conn.db.conn.Exec("SET NAMES utf8mb4", []dbDriver.Value{})
 	}
 	return true
 }
 
-func (This *Conn) ReConnect() bool {
+func (conn *MysqlConn) ReConnect() bool {
 	defer func() {
 		if err := recover(); err != nil {
-			This.conn.err = fmt.Errorf(fmt.Sprint(err) + " debug:" + string(debug.Stack()))
-			This.err = This.conn.err
+			conn.db.err = fmt.Errorf(fmt.Sprint(err) + " debug:" + string(debug.Stack()))
+			conn.err = conn.db.err
 		}
 	}()
-	if This.conn != nil {
-		This.closeStmt0()
-		This.conn.Close()
+	if conn.db != nil {
+		conn.closeStmt0()
+		conn.db.Close()
 	}
-	This.Connect()
-	if This.conn.err == nil {
-		This.initTableInfo()
+	conn.Connect()
+	if conn.db.err == nil {
+		conn.initTableInfo()
 	}
 	return true
 }
 
-func (This *Conn) StmtClose() {
-	for k, stmt := range This.p.stmtArr {
+func (conn *MysqlConn) StmtClose() {
+	for k, stmt := range conn.p.stmtArr {
 		if stmt != nil {
 			func() {
 				defer func() {
 					if err := recover(); err != nil {
-						This.conn.err = fmt.Errorf("StmtClose err:%s", fmt.Sprint(err))
+						conn.db.err = fmt.Errorf("StmtClose err:%s", fmt.Sprint(err))
 						return
 					}
 				}()
 				stmt.Close()
 			}()
 		}
-		This.p.stmtArr[k] = nil
+		conn.p.stmtArr[k] = nil
 	}
 }
 
-func (This *Conn) Close() bool {
-	if This.conn != nil {
+func (conn *MysqlConn) Close() bool {
+	if conn.db != nil {
 		func() {
 			defer func() {
 				if err := recover(); err != nil {
 					return
 				}
 			}()
-			This.conn.Close()
+			conn.db.Close()
 		}()
 	}
 	return true
 }
 
-func (This *Conn) sendToCacheList(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, err error) {
+func (conn *MysqlConn) sendToCacheList(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, err error) {
 	var n int
 	if retry == false {
-		This.p.Data.Data = append(This.p.Data.Data, data)
+		conn.p.Data.Data = append(conn.p.Data.Data, data)
 	}
-	n = len(This.p.Data.Data)
-	if This.p.BatchSize <= n {
-		LastSuccessCommitData, ErrData, err = This.AutoCommit()
+	n = len(conn.p.Data.Data)
+	if conn.p.BatchSize <= n {
+		LastSuccessCommitData, ErrData, err = conn.AutoCommit()
 		if LastSuccessCommitData != nil {
-			This.p.SkipBinlogData = nil
+			conn.p.SkipBinlogData = nil
 		}
 		return
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToCacheList(data, retry)
+func (conn *MysqlConn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToCacheList(data, retry)
 }
 
-func (This *Conn) Update(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToCacheList(data, retry)
+func (conn *MysqlConn) Update(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToCacheList(data, retry)
 }
 
-func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToCacheList(data, retry)
+func (conn *MysqlConn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToCacheList(data, retry)
 }
 
-func (This *Conn) Query(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, err error) {
-	if This.p.AutoTable == false || data.Query == "" {
+func (conn *MysqlConn) Query(data *pluginDriver.PluginDataType, retry bool) (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, err error) {
+	if conn.p.AutoTable == false || data.Query == "" {
 		return nil, nil, nil
 	}
 	switch data.Query {
@@ -518,34 +519,34 @@ func (This *Conn) Query(data *pluginDriver.PluginDataType, retry bool) (LastSucc
 		break
 	}
 	for {
-		LastSuccessCommitData, ErrData, err = This.AutoCommit()
+		LastSuccessCommitData, ErrData, err = conn.AutoCommit()
 		if err != nil {
 			break
 		}
-		if len(This.p.Data.Data) == 0 {
-			if This.CheckDataSkip(data) {
-				This.p.SkipBinlogData = nil
+		if len(conn.p.Data.Data) == 0 {
+			if conn.CheckDataSkip(data) {
+				conn.p.SkipBinlogData = nil
 				return data, nil, nil
 			}
-			newSqlArr := This.TranferQuerySql(data)
+			newSqlArr := conn.TranferQuerySql(data)
 			if len(newSqlArr) == 0 {
-				log.Println("transfer sql error!", data)
+				logrus.Println("transfer sql error!", data)
 				return nil, data, fmt.Errorf("transfer sql error")
 			}
-			if This.conn.err != nil {
-				This.ReConnect()
+			if conn.db.err != nil {
+				conn.ReConnect()
 			}
-			if This.conn.err != nil {
-				return nil, nil, This.conn.err
+			if conn.db.err != nil {
+				return nil, nil, conn.db.err
 			}
 			for _, newSql := range newSqlArr {
 				if newSql == "" {
 					continue
 				}
-				_, This.conn.err = This.conn.conn.Exec(newSql, []dbDriver.Value{})
-				if This.conn.err != nil {
-					log.Printf("plugin mysql, exec sql:%s err:%s", newSql, This.conn.err)
-					return nil, data, This.conn.err
+				_, conn.db.err = conn.db.conn.Exec(newSql, []dbDriver.Value{})
+				if conn.db.err != nil {
+					logrus.Printf("plugin mysql, exec sql:%s err:%s", newSql, conn.db.err)
+					return nil, data, conn.db.err
 				}
 			}
 			break
@@ -554,29 +555,29 @@ func (This *Conn) Query(data *pluginDriver.PluginDataType, retry bool) (LastSucc
 	return
 }
 
-func (This *Conn) Commit(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	n := len(This.p.Data.Data)
+func (conn *MysqlConn) Commit(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	n := len(conn.p.Data.Data)
 	if n == 0 {
 		return data, nil, nil
 	}
-	n0 := n / This.p.BatchSize
-	if len(This.p.Data.CommitData)-1 < n0 {
-		This.p.Data.CommitData = append(This.p.Data.CommitData, data)
+	n0 := n / conn.p.BatchSize
+	if len(conn.p.Data.CommitData)-1 < n0 {
+		conn.p.Data.CommitData = append(conn.p.Data.CommitData, data)
 	} else {
-		This.p.Data.CommitData[n0] = data
+		conn.p.Data.CommitData[n0] = data
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) TimeOutCommit() (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, err error) {
-	LastSuccessCommitData, ErrData, err = This.AutoCommit()
+func (conn *MysqlConn) TimeOutCommit() (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, err error) {
+	LastSuccessCommitData, ErrData, err = conn.AutoCommit()
 	if LastSuccessCommitData != nil {
-		This.p.SkipBinlogData = nil
+		conn.p.SkipBinlogData = nil
 	}
 	return
 }
 
-func (This *Conn) getMySQLData(data *pluginDriver.PluginDataType, index int, key string) interface{} {
+func (conn *MysqlConn) getMySQLData(data *pluginDriver.PluginDataType, index int, key string) interface{} {
 	if key == "" {
 		return nil
 	}
@@ -607,93 +608,92 @@ func (This *Conn) getMySQLData(data *pluginDriver.PluginDataType, index int, key
 }
 
 // 设置跳过的位点
-func (This *Conn) Skip(SkipData *pluginDriver.PluginDataType) error {
-	This.p.SkipBinlogData = SkipData
+func (conn *MysqlConn) Skip(SkipData *pluginDriver.PluginDataType) error {
+	conn.p.SkipBinlogData = SkipData
 	return nil
 }
 
-func (This *Conn) AutoCommit() (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
+func (conn *MysqlConn) AutoCommit() (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
 	defer func() {
 		if err := recover(); err != nil {
 			e = fmt.Errorf(string(debug.Stack()))
-			log.Println(string(debug.Stack()))
-			This.conn.err = e
-			This.err = e
+			logrus.Println(string(debug.Stack()))
+			conn.db.err = e
+			conn.err = e
 		}
 	}()
-	n := len(This.p.Data.Data)
+	n := len(conn.p.Data.Data)
 	if n == 0 {
 		return nil, nil, nil
 	}
-	if This.p.SyncMode == SYNCMODE_NO_SYNC_DATA {
-		binlogEvent := This.p.Data.CommitData[len(This.p.Data.CommitData)-1]
-		This.p.Data = NewTableData()
+	if conn.p.SyncMode == SYNCMODE_NO_SYNC_DATA {
+		binlogEvent := conn.p.Data.CommitData[len(conn.p.Data.CommitData)-1]
+		conn.p.Data = NewTableData()
 		return binlogEvent, nil, nil
 	}
-	if This.conn.err != nil {
-		This.ReConnect()
+	if conn.db.err != nil {
+		conn.ReConnect()
 	}
-	if This.conn.err != nil {
-		return nil, nil, This.conn.err
+	if conn.db.err != nil {
+		return nil, nil, conn.db.err
 	}
-	if n > This.p.BatchSize {
-		n = This.p.BatchSize
+	if n > conn.p.BatchSize {
+		n = conn.p.BatchSize
 	}
-	list := This.p.Data.Data[:n]
-	if This.p.AutoTable {
-		ErrData, e = This.AutoTableCommit(list)
+	list := conn.p.Data.Data[:n]
+	if conn.p.AutoTable {
+		ErrData, e = conn.AutoTableCommit(list)
 	} else {
-		ErrData, e = This.NotAutoTableCommit(list)
+		ErrData, e = conn.NotAutoTableCommit(list)
 	}
 	if e != nil {
-		log.Println("e:", e)
-		if This.p.BifrostMustBeSuccess {
+		logrus.Println("e:", e)
+		if conn.p.BifrostMustBeSuccess {
 			return nil, ErrData, e
 		}
 	}
 	var binlogEvent *pluginDriver.PluginDataType
-	if len(This.p.Data.Data) <= int(This.p.BatchSize) {
-		if len(This.p.Data.CommitData) > 1 {
-			binlogEvent = This.p.Data.CommitData[0]
+	if len(conn.p.Data.Data) <= int(conn.p.BatchSize) {
+		if len(conn.p.Data.CommitData) > 1 {
+			binlogEvent = conn.p.Data.CommitData[0]
 		}
-		This.p.Data = NewTableData()
+		conn.p.Data = NewTableData()
 	} else {
-		This.p.Data.Data = This.p.Data.Data[n:]
-		if len(This.p.Data.CommitData) > 0 {
-			binlogEvent = This.p.Data.CommitData[0]
-			This.p.Data.CommitData = This.p.Data.CommitData[1:]
+		conn.p.Data.Data = conn.p.Data.Data[n:]
+		if len(conn.p.Data.CommitData) > 0 {
+			binlogEvent = conn.p.Data.CommitData[0]
+			conn.p.Data.CommitData = conn.p.Data.CommitData[1:]
 		}
 	}
 	return binlogEvent, nil, nil
 }
 
-func (This *Conn) NotAutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType, e error) {
-	This.conn.err = This.conn.Begin()
-	if This.conn.err != nil {
-		return nil, This.conn.err
+func (conn *MysqlConn) NotAutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType, e error) {
+	conn.db.err = conn.db.Begin()
+	if conn.db.err != nil {
+		return nil, conn.db.err
 	}
-	ErrData = This.commitData(list)
+	ErrData = conn.commitData(list)
 
-	if This.conn.err != nil {
-		This.err = This.conn.err
-		//log.Println("plugin mysql conn.err",This.err)
-		return ErrData, This.err
+	if conn.db.err != nil {
+		conn.err = conn.db.err
+		return ErrData, conn.err
 	}
-	if This.err != nil {
-		This.conn.err = This.conn.Rollback()
-		log.Println("plugin mysql err", This.err)
-		return ErrData, This.err
+	if conn.err != nil {
+		conn.db.err = conn.db.Rollback()
+		logrus.Println("plugin mysql err", conn.err)
+		return ErrData, conn.err
 	}
-	This.conn.err = This.conn.Commit()
-	This.StmtClose()
-	if This.conn.err != nil {
-		return nil, This.conn.err
+	conn.db.err = conn.db.Commit()
+	conn.StmtClose()
+	if conn.db.err != nil {
+		return nil, conn.db.err
 	}
 	return
 }
 
 // 自动创建表的提交
-func (This *Conn) AutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType, e error) {
+func (conn *MysqlConn) AutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType, e error) {
 	dataMap := make(map[string][]*pluginDriver.PluginDataType, 0)
 	var ok bool
 	for _, PluginData := range list {
@@ -704,82 +704,82 @@ func (This *Conn) AutoTableCommit(list []*pluginDriver.PluginDataType) (ErrData 
 		dataMap[key] = append(dataMap[key], PluginData)
 	}
 	for _, data := range dataMap {
-		p, err := This.CreateTableAndGetTableFieldsType(data[0])
+		p, err := conn.CreateTableAndGetTableFieldsType(data[0])
 		if err != nil {
 			return data[0], err
 		}
 		if p == nil {
 			continue
 		}
-		This.p.Field = p.Field
-		This.p.fieldCount = len(p.Field)
-		This.p.schemaAndTable = p.SchemaAndTable
-		This.p.PriKey = p.PriKey
-		This.p.toPriKey = p.ToPriKey
-		This.p.fromPriKey = p.FromPriKey
-		This.conn.err = This.conn.Begin()
-		if This.conn.err != nil {
-			This.err = This.conn.err
+		conn.p.Field = p.Field
+		conn.p.fieldCount = len(p.Field)
+		conn.p.schemaAndTable = p.SchemaAndTable
+		conn.p.PriKey = p.PriKey
+		conn.p.toPriKey = p.ToPriKey
+		conn.p.fromPriKey = p.FromPriKey
+		conn.db.err = conn.db.Begin()
+		if conn.db.err != nil {
+			conn.err = conn.db.err
 			break
 		}
 
-		ErrData = This.commitData(data)
-		if This.conn.err != nil {
-			This.err = This.conn.err
+		ErrData = conn.commitData(data)
+		if conn.db.err != nil {
+			conn.err = conn.db.err
 		}
-		if This.err != nil {
-			This.conn.err = This.conn.Rollback()
-			log.Printf("[ERROR] output[%s] AutoTableCommit commitData err:%+v \n", OutputName, This.err)
-			return ErrData, This.err
+		if conn.err != nil {
+			conn.db.err = conn.db.Rollback()
+			logrus.Printf("[ERROR] output[%s] AutoTableCommit commitData err:%+v \n", OutputName, conn.err)
+			return ErrData, conn.err
 		}
-		This.conn.err = This.conn.Commit()
-		This.StmtClose()
-		if This.conn.err != nil {
+		conn.db.err = conn.db.Commit()
+		conn.StmtClose()
+		if conn.db.err != nil {
 			break
 		}
 	}
 	return
 }
 
-func (This *Conn) commitData(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType) {
-	switch This.p.SyncMode {
+func (conn *MysqlConn) commitData(list []*pluginDriver.PluginDataType) (ErrData *pluginDriver.PluginDataType) {
+	switch conn.p.SyncMode {
 	case SYNCMODE_NORMAL:
-		if This.IsStarRocks() {
-			ErrData = This.StarRocksCommitNormal(list)
+		if conn.IsStarRocks() {
+			ErrData = conn.StarRocksCommitNormal(list)
 		} else {
-			ErrData = This.CommitNormal(list)
+			ErrData = conn.CommitNormal(list)
 		}
 		break
 	case SYNCMODE_LOG_UPDATE:
-		if This.IsStarRocks() {
-			ErrData = This.StarRocksCommit_Append(list)
+		if conn.IsStarRocks() {
+			ErrData = conn.StarRocksCommit_Append(list)
 		} else {
-			ErrData = This.CommitLogMod_Update(list)
+			ErrData = conn.CommitLogMod_Update(list)
 		}
 		break
 	case SYNCMODE_LOG_APPEND:
-		if This.IsStarRocks() {
-			ErrData = This.StarRocksCommit_Append(list)
+		if conn.IsStarRocks() {
+			ErrData = conn.StarRocksCommit_Append(list)
 		} else {
-			ErrData = This.CommitLogMod_Append(list)
+			ErrData = conn.CommitLogMod_Append(list)
 		}
 		break
 	default:
-		This.err = fmt.Errorf("同步模式ERROR:%s", This.p.SyncMode)
+		conn.err = fmt.Errorf("同步模式ERROR:%s", conn.p.SyncMode)
 		break
 	}
 	return
 }
 
-func (This *Conn) dataTypeTransfer(data interface{}, fieldName string, toDataType string, defaultVal *string) (v dbDriver.Value, e error) {
+func (conn *MysqlConn) dataTypeTransfer(data interface{}, fieldName string, toDataType string, defaultVal *string) (v dbDriver.Value, e error) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("[ERROR] output[%s] dataTypeTransfer pacnic:%+v stack:%+v \n", OutputName, err, string(debug.Stack()))
+			logrus.Printf("[ERROR] output[%s] dataTypeTransfer pacnic:%+v stack:%+v \n", OutputName, err, string(debug.Stack()))
 			e = fmt.Errorf(fieldName + " " + fmt.Sprint(err))
 		}
 	}()
 	if data == nil {
-		if This.p.NullTransferDefault == false {
+		if conn.p.NullTransferDefault == false {
 			if defaultVal == nil {
 				v = nil
 				return
@@ -893,7 +893,7 @@ func (This *Conn) dataTypeTransfer(data interface{}, fieldName string, toDataTyp
 		}
 		break
 	default:
-		v, e = This.data2String(data)
+		v, e = conn.data2String(data)
 		if e != nil {
 			e = fmt.Errorf("field:%s ,%s", fieldName, e.Error())
 		}
@@ -902,7 +902,7 @@ func (This *Conn) dataTypeTransfer(data interface{}, fieldName string, toDataTyp
 	return
 }
 
-func (This *Conn) data2String(data interface{}) (v string, e error) {
+func (conn *MysqlConn) data2String(data interface{}) (v string, e error) {
 	switch reflect.TypeOf(data).Kind() {
 	case reflect.String:
 		switch data.(type) {
@@ -930,15 +930,15 @@ func (This *Conn) data2String(data interface{}) (v string, e error) {
 	return
 }
 
-func (This *Conn) getStmt(Type EventType) dbDriver.Stmt {
-	if This.p.stmtArr[Type] != nil {
-		return This.p.stmtArr[Type]
+func (conn *MysqlConn) getStmt(Type EventType) dbDriver.Stmt {
+	if conn.p.stmtArr[Type] != nil {
+		return conn.p.stmtArr[Type]
 	}
 	switch Type {
 	case REPLACE_INSERT:
 		fields := ""
 		values := ""
-		for _, v := range This.p.Field {
+		for _, v := range conn.p.Field {
 			if fields == "" {
 				fields = "`" + v.ToField + "`"
 				values = "?"
@@ -947,16 +947,16 @@ func (This *Conn) getStmt(Type EventType) dbDriver.Stmt {
 				values += ",?"
 			}
 		}
-		sql := "REPLACE INTO " + This.p.schemaAndTable + " (" + fields + ") VALUES (" + values + ")"
-		This.p.stmtArr[Type], This.conn.err = This.conn.conn.Prepare(sql)
-		if This.conn.err != nil {
-			log.Println("mysql getStmt REPLACE_INSERT err:", This.conn.err, sql)
+		sql := "REPLACE INTO " + conn.p.schemaAndTable + " (" + fields + ") VALUES (" + values + ")"
+		conn.p.stmtArr[Type], conn.db.err = conn.db.conn.Prepare(sql)
+		if conn.db.err != nil {
+			logrus.Println("mysql getStmt REPLACE_INSERT err:", conn.db.err, sql)
 		}
 		break
 	case INSERT:
 		fields := ""
 		values := ""
-		for _, v := range This.p.Field {
+		for _, v := range conn.p.Field {
 			if fields == "" {
 				fields = "`" + v.ToField + "`"
 				values = "?"
@@ -965,31 +965,31 @@ func (This *Conn) getStmt(Type EventType) dbDriver.Stmt {
 				values += ",?"
 			}
 		}
-		sql := "INSERT INTO " + This.p.schemaAndTable + " (" + fields + ") VALUES (" + values + ")"
-		This.p.stmtArr[Type], This.conn.err = This.conn.conn.Prepare(sql)
-		if This.conn.err != nil {
-			log.Println("mysql getStmt INSERT err:", This.conn.err, sql)
+		sql := "INSERT INTO " + conn.p.schemaAndTable + " (" + fields + ") VALUES (" + values + ")"
+		conn.p.stmtArr[Type], conn.db.err = conn.db.conn.Prepare(sql)
+		if conn.db.err != nil {
+			logrus.Println("mysql getStmt INSERT err:", conn.db.err, sql)
 		}
 		break
 	case DELETE:
 		where := ""
-		for _, v := range This.p.PriKey {
+		for _, v := range conn.p.PriKey {
 			if where == "" {
 				where = "`" + v.ToField + "`=?"
 			} else {
 				where += " AND `" + v.ToField + "`=?"
 			}
 		}
-		This.p.stmtArr[Type], This.conn.err = This.conn.conn.Prepare("DELETE FROM " + This.p.schemaAndTable + " WHERE " + where)
-		if This.conn.err != nil {
-			log.Println("mysql getStmt DELETE err:", This.conn.err)
+		conn.p.stmtArr[Type], conn.db.err = conn.db.conn.Prepare("DELETE FROM " + conn.p.schemaAndTable + " WHERE " + where)
+		if conn.db.err != nil {
+			logrus.Println("mysql getStmt DELETE err:", conn.db.err)
 		}
 		break
 	case UPDATE:
 		fields := ""
 		values := ""
 		fields2 := ""
-		for _, v := range This.p.Field {
+		for _, v := range conn.p.Field {
 			if fields == "" {
 				fields = "`" + v.ToField + "`"
 				values = "?"
@@ -1000,29 +1000,29 @@ func (This *Conn) getStmt(Type EventType) dbDriver.Stmt {
 				fields2 += ",`" + v.ToField + "`=?"
 			}
 		}
-		sql := "INSERT INTO " + This.p.schemaAndTable + " (" + fields + ") VALUES (" + values + ") ON DUPLICATE KEY UPDATE " + fields2
-		This.p.stmtArr[Type], This.conn.err = This.conn.conn.Prepare(sql)
-		if This.conn.err != nil {
-			log.Println("mysql getStmt INSERT ON DUPLICATE KEY UPDATE err:", This.conn.err, sql)
+		sql := "INSERT INTO " + conn.p.schemaAndTable + " (" + fields + ") VALUES (" + values + ") ON DUPLICATE KEY UPDATE " + fields2
+		conn.p.stmtArr[Type], conn.db.err = conn.db.conn.Prepare(sql)
+		if conn.db.err != nil {
+			logrus.Println("mysql getStmt INSERT ON DUPLICATE KEY UPDATE err:", conn.db.err, sql)
 		}
 		break
 	}
 
-	return This.p.stmtArr[Type]
+	return conn.p.stmtArr[Type]
 }
 
-func (This *Conn) closeStmt0() {
-	for k, _ := range This.p.stmtArr {
-		This.p.stmtArr[k] = nil
+func (conn *MysqlConn) closeStmt0() {
+	for k, _ := range conn.p.stmtArr {
+		conn.p.stmtArr[k] = nil
 	}
 }
 
-func (This *Conn) CheckDataSkip(data *pluginDriver.PluginDataType) bool {
-	if This.p.SkipBinlogData != nil && This.p.SkipBinlogData.BinlogFileNum == data.BinlogFileNum && This.p.SkipBinlogData.BinlogPosition == data.BinlogPosition {
-		if This.p.SkipBinlogData.BinlogFileNum == data.BinlogFileNum && This.p.SkipBinlogData.BinlogPosition >= data.BinlogPosition {
+func (conn *MysqlConn) CheckDataSkip(data *pluginDriver.PluginDataType) bool {
+	if conn.p.SkipBinlogData != nil && conn.p.SkipBinlogData.BinlogFileNum == data.BinlogFileNum && conn.p.SkipBinlogData.BinlogPosition == data.BinlogPosition {
+		if conn.p.SkipBinlogData.BinlogFileNum == data.BinlogFileNum && conn.p.SkipBinlogData.BinlogPosition >= data.BinlogPosition {
 			return true
 		}
-		if This.p.SkipBinlogData.BinlogFileNum > data.BinlogFileNum {
+		if conn.p.SkipBinlogData.BinlogFileNum > data.BinlogFileNum {
 			return true
 		}
 	}

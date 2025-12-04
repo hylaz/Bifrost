@@ -1,16 +1,12 @@
 package src
 
-/*
-将所有数据转成 insert 的方式写入到 mysql
-*/
-
 import (
 	dbDriver "database/sql/driver"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
-func (This *Conn) CommitLogMod_Append(list []*pluginDriver.PluginDataType) (errData *pluginDriver.PluginDataType) {
+func (conn *MysqlConn) CommitLogMod_Append(list []*pluginDriver.PluginDataType) (errData *pluginDriver.PluginDataType) {
 	//将update, delete,insert 的数据全转成  insert 语句
 	var stmt dbDriver.Stmt
 	n := len(list)
@@ -20,65 +16,65 @@ LOOP:
 		switch data.EventType {
 		case "update":
 			val := make([]dbDriver.Value, 0)
-			for _, v := range This.p.Field {
+			for _, v := range conn.p.Field {
 				var toV dbDriver.Value
-				toV, This.err = This.dataTypeTransfer(This.getMySQLData(data, 1, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
-				if This.err != nil {
-					if !This.p.BifrostMustBeSuccess {
-						This.err = nil
+				toV, conn.err = conn.dataTypeTransfer(conn.getMySQLData(data, 1, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
+				if conn.err != nil {
+					if !conn.p.BifrostMustBeSuccess {
+						conn.err = nil
 						continue LOOP
 					}
-					if This.CheckDataSkip(data) {
-						This.err = nil
+					if conn.CheckDataSkip(data) {
+						conn.err = nil
 						continue LOOP
 					}
 					return data
 				}
 				val = append(val, toV)
 			}
-			stmt = This.getStmt(INSERT)
+			stmt = conn.getStmt(INSERT)
 			if stmt == nil {
 				return data
 			}
-			_, This.conn.err = stmt.Exec(val)
-			if This.conn.err != nil {
-				if This.CheckDataSkip(data) {
-					This.conn.err = nil
+			_, conn.db.err = stmt.Exec(val)
+			if conn.db.err != nil {
+				if conn.CheckDataSkip(data) {
+					conn.db.err = nil
 					continue LOOP
 				}
-				log.Println("plugin mysql insert exec err:", This.conn.err, " data:", val)
+				logrus.Println("plugin mysql insert exec err:", conn.db.err, " data:", val)
 				return data
 			}
 			break
 		case "insert", "delete":
 			val := make([]dbDriver.Value, 0)
-			for _, v := range This.p.Field {
+			for _, v := range conn.p.Field {
 				var toV dbDriver.Value
-				toV, This.err = This.dataTypeTransfer(This.getMySQLData(data, 0, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
-				if This.err != nil {
-					if !This.p.BifrostMustBeSuccess {
-						This.err = nil
+				toV, conn.err = conn.dataTypeTransfer(conn.getMySQLData(data, 0, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
+				if conn.err != nil {
+					if !conn.p.BifrostMustBeSuccess {
+						conn.err = nil
 						continue LOOP
 					}
-					if This.CheckDataSkip(data) {
-						This.err = nil
+					if conn.CheckDataSkip(data) {
+						conn.err = nil
 						continue LOOP
 					}
 					return data
 				}
 				val = append(val, toV)
 			}
-			stmt = This.getStmt(INSERT)
+			stmt = conn.getStmt(INSERT)
 			if stmt == nil {
 				return data
 			}
-			_, This.conn.err = stmt.Exec(val)
-			if This.conn.err != nil {
-				if This.CheckDataSkip(data) {
-					This.conn.err = nil
+			_, conn.db.err = stmt.Exec(val)
+			if conn.db.err != nil {
+				if conn.CheckDataSkip(data) {
+					conn.db.err = nil
 					continue LOOP
 				}
-				log.Println("plugin mysql insert exec err:", This.conn.err, " data:", val)
+				logrus.Println("plugin mysql insert exec err:", conn.db.err, " data:", val)
 				return data
 			}
 			break

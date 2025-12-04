@@ -13,18 +13,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const VERSION = "v1.7.4"
-const BIFROST_VERION = "v1.7.4"
+const Version = "v1.7.4"
+const BifrostVersion = "v1.7.4"
 
 func init() {
-	driver.Register("redis", NewRedisConn, VERSION, BIFROST_VERION)
+	driver.Register("redis", NewRedisConn, Version, BifrostVersion)
 }
 
 var ctx = context.Background()
 
 type RedisConn struct {
 	driver.PluginDriverInterface
-	Uri    *string
+	Uri    string
 	status string
 	conn   redis.UniversalClient
 	err    error
@@ -48,7 +48,7 @@ func NewRedisConn() driver.Driver {
 }
 
 func (redisConn *RedisConn) SetOption(uri *string, param map[string]interface{}) {
-	redisConn.Uri = uri
+	redisConn.Uri = *uri
 	return
 }
 
@@ -129,7 +129,7 @@ func (redisConn *RedisConn) SetParam(p interface{}) (interface{}, error) {
 }
 
 func (redisConn *RedisConn) Connect() bool {
-	pwd, network, uri, database := GetUriParam(*redisConn.Uri)
+	pwd, network, uri, database := GetUriParam(redisConn.Uri)
 	if database < 0 {
 		redisConn.err = fmt.Errorf("database must be in 0 and 16")
 		return false

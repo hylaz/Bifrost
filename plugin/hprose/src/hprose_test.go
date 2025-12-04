@@ -1,15 +1,11 @@
-//go:build integration
-// +build integration
-
 package src_test
 
 import (
 	"encoding/json"
-	"github.com/hprose/hprose-golang/rpc"
-	"log"
-	//"github.com/brokercap/Bifrost/sdk/pluginTestData"
 	MyPlugin "github.com/brokercap/Bifrost/plugin/hprose/src"
 	"github.com/brokercap/Bifrost/sdk/pluginTestData"
+	"github.com/hprose/hprose-golang/rpc"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"testing"
 	"time"
@@ -22,7 +18,7 @@ var tcpUrl = "tcp4://0.0.0.0:4321/"
 var httpUrl = "http://127.0.0.1:8881"
 
 func Check(context *rpc.HTTPContext) (e error) {
-	log.Println("Check success")
+	logrus.Println("Check success")
 	return nil
 }
 

@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"github.com/brokercap/Bifrost/plugin/driver"
+	"github.com/sirupsen/logrus"
 	"log"
 	"sync"
 	"time"
@@ -37,7 +38,7 @@ func GetToServerMap() map[string]*ToServer {
 func SetToServerInfo(ToServerKey string, server ToServer) {
 	Drivers := driver.Drivers()
 	if _, ok := Drivers[server.PluginName]; !ok {
-		log.Println("SetToServerInfo err: plugin ", ToServerKey, " not exsit")
+		logrus.Println("SetToServerInfo err: plugin ", ToServerKey, " not exsit")
 		return
 	}
 	if server.MaxConn <= 0 {
@@ -73,7 +74,7 @@ func SetToServerInfo(ToServerKey string, server ToServer) {
 func UpdateToServerInfo(ToServerKey string, server ToServer) error {
 	Drivers := driver.Drivers()
 	if _, ok := Drivers[server.PluginName]; !ok {
-		log.Println("SetToServerInfo err: plugin ", ToServerKey, " not exsit")
+		logrus.Println("SetToServerInfo err: plugin ", ToServerKey, " not exsit")
 		return nil
 	}
 	if server.MaxConn <= 0 {
@@ -104,7 +105,7 @@ func GetToServerInfo(key string) *ToServer {
 	l.Lock()
 	defer l.Unlock()
 	if _, ok := ToServerMap[key]; !ok {
-		log.Println("ToServer:", key, " no exsit,GetToServerInfo nil")
+		logrus.Println("ToServer:", key, " no exsit,GetToServerInfo nil")
 		return nil
 	}
 	return ToServerMap[key]

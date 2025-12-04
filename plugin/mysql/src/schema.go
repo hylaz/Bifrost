@@ -3,8 +3,8 @@ package src
 import (
 	"database/sql/driver"
 	"fmt"
-	mysql2 "github.com/brokercap/Bifrost/mysql"
-	"log"
+	"github.com/brokercap/Bifrost/mysql"
+	"github.com/sirupsen/logrus"
 	"strconv"
 )
 
@@ -18,39 +18,39 @@ func NewMysqlDBConn(uri string) *mysqlDB {
 
 type mysqlDB struct {
 	uri  string
-	conn mysql2.MysqlConnection
+	conn mysql.MysqlConnection
 	err  error
 }
 
-func (This *mysqlDB) Open() (b bool) {
+func (db *mysqlDB) Open() (b bool) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("[ERROR] output[%s] mysqlDB Open err:%+v \n", OutputName, err)
-			This.err = fmt.Errorf(fmt.Sprint(err))
+			logrus.Printf("[ERROR] output[%s] mysqlDB Open err:%+v \n", OutputName, err)
+			db.err = fmt.Errorf(fmt.Sprint(err))
 			b = false
 		}
 	}()
-	This.conn = mysql2.NewConnect(This.uri)
+	db.conn = mysql.NewConnect(db.uri)
 	return true
 }
 
-func (This *mysqlDB) Close() bool {
+func (db *mysqlDB) Close() bool {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("[ERROR] output[%s] mysqlDB Close err:%+v \n", OutputName, err)
+			logrus.Printf("[ERROR] output[%s] mysqlDB Close err:%+v ", OutputName, err)
 		}
 	}()
-	if This.conn != nil {
-		This.conn.Close()
+	if db.conn != nil {
+		db.conn.Close()
 	}
 	return true
 }
 
-func (This *mysqlDB) GetSchemaList() (data []string) {
+func (db *mysqlDB) GetSchemaList() (data []string) {
 	var rows driver.Rows
-	rows, This.err = This.conn.Query("SHOW DATABASES", []driver.Value{})
-	if This.err != nil {
-		log.Printf("[ERROR] output[%s] GetSchemaList err:%+v \n", OutputName, This.err)
+	rows, db.err = db.conn.Query("SHOW DATABASES", []driver.Value{})
+	if db.err != nil {
+		logrus.Printf("[ERROR] output[%s] GetSchemaList err:%+v ", OutputName, db.err)
 		return
 	}
 	defer rows.Close()
@@ -75,17 +75,17 @@ func (This *mysqlDB) GetSchemaList() (data []string) {
 	return
 }
 
-func (This *mysqlDB) GetSchemaTableList(schema string) (data []string) {
+func (db *mysqlDB) GetSchemaTableList(schema string) (data []string) {
 	if schema == "" {
 		return
 	}
 	sql := "SELECT TABLE_NAME FROM `information_schema`.`TABLES` WHERE TABLE_SCHEMA = ?"
 	p := make([]driver.Value, 0)
 	p = append(p, schema)
-	rows, err := This.conn.Query(sql, p)
+	rows, err := db.conn.Query(sql, p)
 	if err != nil {
-		log.Printf("[ERROR] output[%s] GetSchemaTableList schema:%s err:%+v \n", OutputName, schema, err)
-		This.err = err
+		logrus.Printf("[ERROR] output[%s] GetSchemaTableList schema:%s err:%+v \n", OutputName, schema, err)
+		db.err = err
 		return
 	}
 	defer rows.Close()
@@ -114,20 +114,20 @@ type TableStruct struct {
 	NUMERIC_SCALE     *uint64
 }
 
-func (This *mysqlDB) GetTableFields(schema, table string) (data []TableStruct) {
+func (db *mysqlDB) GetTableFields(schema, table string) (data []TableStruct) {
 	FieldList := make([]TableStruct, 0)
 	sql := "SELECT `COLUMN_NAME`,`COLUMN_DEFAULT`,`IS_NULLABLE`,`COLUMN_TYPE`,`COLUMN_KEY`,`EXTRA`,`COLUMN_COMMENT`,`DATA_TYPE`,`NUMERIC_PRECISION`,`NUMERIC_SCALE` FROM `information_schema`.`columns` WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? "
 	p := make([]driver.Value, 0)
 	p = append(p, schema)
 	p = append(p, table)
 	var rows driver.Rows
-	rows, This.err = This.conn.Query(sql, p)
-	if This.err != nil {
+	rows, db.err = db.conn.Query(sql, p)
+	if db.err != nil {
 		return
 	}
 	defer rows.Close()
-	if This.err != nil {
-		log.Printf("[ERROR] output[%s] GetTableFields schema:%s table:%s err:%+v \n", OutputName, schema, table, This.err)
+	if db.err != nil {
+		logrus.Printf("[ERROR] output[%s] GetTableFields schema:%s table:%s err:%+v ", OutputName, schema, table, db.err)
 		return FieldList
 	}
 	for {
@@ -191,28 +191,28 @@ func (This *mysqlDB) GetTableFields(schema, table string) (data []TableStruct) {
 	return FieldList
 }
 
-func (This *mysqlDB) Begin() error {
-	_, This.err = This.conn.Exec("BEGIN", make([]driver.Value, 0))
-	return This.err
+func (db *mysqlDB) Begin() error {
+	_, db.err = db.conn.Exec("BEGIN", make([]driver.Value, 0))
+	return db.err
 }
 
-func (This *mysqlDB) Commit() error {
-	_, This.err = This.conn.Exec("COMMIT", make([]driver.Value, 0))
-	return This.err
+func (db *mysqlDB) Commit() error {
+	_, db.err = db.conn.Exec("COMMIT", make([]driver.Value, 0))
+	return db.err
 }
 
-func (This *mysqlDB) Rollback() error {
-	_, This.err = This.conn.Exec("ROLLBACK", make([]driver.Value, 0))
-	return This.err
+func (db *mysqlDB) Rollback() error {
+	_, db.err = db.conn.Exec("ROLLBACK", make([]driver.Value, 0))
+	return db.err
 }
 
-func (This *mysqlDB) ShowTableCreate(schema, table string) string {
+func (db *mysqlDB) ShowTableCreate(schema, table string) string {
 	sql := "SHOW CREATE TABLE `" + schema + "`.`" + table + "`"
 	p := make([]driver.Value, 0)
 	var rows driver.Rows
-	rows, This.err = This.conn.Query(sql, p)
-	if This.err != nil {
-		log.Printf("[ERROR] output[%s] ShowTableCreate schema:%s table:%s err:%+v \n", OutputName, schema, table, This.err)
+	rows, db.err = db.conn.Query(sql, p)
+	if db.err != nil {
+		logrus.Printf("[ERROR] output[%s] ShowTableCreate schema:%s table:%s err:%+v ", OutputName, schema, table, db.err)
 		return ""
 	}
 	defer rows.Close()
@@ -230,13 +230,13 @@ func (This *mysqlDB) ShowTableCreate(schema, table string) string {
 	return createSQL
 }
 
-func (This *mysqlDB) SelectVersion() string {
+func (db *mysqlDB) SelectVersion() string {
 	sql := "SELECT version()"
 	p := make([]driver.Value, 0)
 	var rows driver.Rows
-	rows, This.err = This.conn.Query(sql, p)
-	if This.err != nil {
-		log.Printf("[ERROR] output[%s] SelectVersion err:%+v \n", OutputName, This.err)
+	rows, db.err = db.conn.Query(sql, p)
+	if db.err != nil {
+		logrus.Printf("[ERROR] output[%s] SelectVersion err:%+v ", OutputName, db.err)
 		return ""
 	}
 	defer rows.Close()
@@ -254,25 +254,25 @@ func (This *mysqlDB) SelectVersion() string {
 	return version
 }
 
-func (This *mysqlDB) CreateDatabase(database string) (err error) {
+func (db *mysqlDB) CreateDatabase(database string) (err error) {
 	sql := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", database)
-	_, This.err = This.conn.Exec(sql, []driver.Value{})
-	return This.err
+	_, db.err = db.conn.Exec(sql, []driver.Value{})
+	return db.err
 }
 
-func (This *mysqlDB) Exec(sql string) (err error) {
-	_, This.err = This.conn.Exec(sql, []driver.Value{})
-	return This.err
+func (db *mysqlDB) Exec(sql string) (err error) {
+	_, db.err = db.conn.Exec(sql, []driver.Value{})
+	return db.err
 }
 
-func (This *mysqlDB) ShowBackends() (backendsList []map[string]driver.Value, err error) {
+func (db *mysqlDB) ShowBackends() (backendsList []map[string]driver.Value, err error) {
 	sql := "SHOW backends"
 	p := make([]driver.Value, 0)
 	var rows driver.Rows
-	rows, This.err = This.conn.Query(sql, p)
-	if This.err != nil {
-		log.Printf("[WARN] output[%s] ShowBackbends err:%+v \n", OutputName, This.err)
-		return make([]map[string]driver.Value, 0), This.err
+	rows, db.err = db.conn.Query(sql, p)
+	if db.err != nil {
+		logrus.Printf("[WARN] output[%s] ShowBackbends err:%+v ", OutputName, db.err)
+		return make([]map[string]driver.Value, 0), db.err
 	}
 	defer rows.Close()
 	for {
@@ -290,12 +290,12 @@ func (This *mysqlDB) ShowBackends() (backendsList []map[string]driver.Value, err
 	return backendsList, nil
 }
 
-func (This *mysqlDB) ShowVersionComment() (versionComment string, err error) {
+func (db *mysqlDB) ShowVersionComment() (versionComment string, err error) {
 	sql := "SHOW VARIABLES LIKE 'version_comment'"
 	p := make([]driver.Value, 0)
-	rows, err := This.conn.Query(sql, p)
+	rows, err := db.conn.Query(sql, p)
 	if err != nil {
-		log.Printf("[WARN] output[%s] ShowVersionComment err:%+v \n", OutputName, err)
+		logrus.Printf("[WARN] output[%s] ShowVersionComment err:%+v \n", OutputName, err)
 		return "", err
 	}
 	defer rows.Close()

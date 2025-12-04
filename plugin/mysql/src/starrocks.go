@@ -4,58 +4,62 @@ import (
 	dbDriver "database/sql/driver"
 	"fmt"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
+	"github.com/sirupsen/logrus"
 	"log"
 	"runtime/debug"
 	"strings"
 )
 
-func (This *Conn) IsStarRocks() bool {
-	return This.isStarRocks
+func (conn *MysqlConn) IsStarRocks() bool {
+	return conn.isStarRocks
 }
 
-func (This *Conn) GetStarRocksBeCount() int {
-	return This.starRocksBeCount
+func (conn *MysqlConn) GetStarRocksBeCount() int {
+	return conn.starRocksBeCount
 }
 
-func (This *Conn) initIsStarrock() {
-	tmpUri := strings.ToLower(*This.uri)
+func (conn *MysqlConn) initIsStarrock() {
+	tmpUri := strings.ToLower(conn.uri)
 	if strings.Contains(tmpUri, "starrocks") || strings.Contains(tmpUri, "doris") {
-		This.isStarRocks = true
-		This.starRocksBeCount = 1
+		conn.isStarRocks = true
+		conn.starRocksBeCount = 1
 	}
+
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("[ERROR] output[%s] initIsStarrock recover:%+v \n", OutputName, string(debug.Stack()))
+			logrus.Printf("[ERROR] output[%s] initIsStarrock recover:%+v ", OutputName, string(debug.Stack()))
 			return
 		}
 	}()
-	if This.conn == nil {
+
+	if conn.db == nil {
 		return
 	}
-	if !This.isStarRocks {
-		versionComment, err := This.conn.ShowVersionComment()
+
+	if !conn.isStarRocks {
+		versionComment, err := conn.db.ShowVersionComment()
 		if err != nil {
 			return
 		}
 		if !strings.Contains(strings.ToLower(versionComment), "mysql") {
-			This.isStarRocks = true
-			This.starRocksBeCount = 1
+			conn.isStarRocks = true
+			conn.starRocksBeCount = 1
 		}
 	}
-	if This.isStarRocks {
-		backendsList, _ := This.conn.ShowBackends()
+
+	if conn.isStarRocks {
+		backendsList, _ := conn.db.ShowBackends()
 		if len(backendsList) == 0 {
 			return
 		}
-		// starrocks show backends 列表中,存在 BePort 这个字段,代表 Be 节点的端口
 		if _, ok := backendsList[0]["BePort"]; !ok {
 			return
 		}
-		This.starRocksBeCount = len(backendsList)
+		conn.starRocksBeCount = len(backendsList)
 	}
 }
 
-func (This *Conn) StarRocksDelete(SchemaName, TableName string, pks []string, pksWhereList [][]string) error {
+func (conn *MysqlConn) StarRocksDelete(SchemaName, TableName string, pks []string, pksWhereList [][]string) error {
 	if len(pks) == 0 || len(pksWhereList) == 0 {
 		return nil
 	}
@@ -84,20 +88,20 @@ func (This *Conn) StarRocksDelete(SchemaName, TableName string, pks []string, pk
 		//sqlArgs[i] = strings.Replace(strings.Trim(fmt.Sprint(whereArgs), "[]"), " ", "','", -1)
 		sqlArgs[i] = whereArgsList[i]
 	}
-	_, err := This.conn.conn.Exec(sql, sqlArgs)
+	_, err := conn.db.conn.Exec(sql, sqlArgs)
 	return err
 }
 
-func (This *Conn) StarRocksInsert(list []*pluginDriver.PluginDataType) (errData *pluginDriver.PluginDataType, err error) {
+func (conn *MysqlConn) StarRocksInsert(list []*pluginDriver.PluginDataType) (errData *pluginDriver.PluginDataType, err error) {
 	if len(list) == 0 {
 		return nil, nil
 	}
-	var SchemaNme = This.GetSchemaName(list[0])
-	var TableName = This.GetTableName(list[0])
+	var SchemaNme = conn.GetSchemaName(list[0])
+	var TableName = conn.GetTableName(list[0])
 	var valList = make([]dbDriver.Value, 0)
 	fields := ""
 	values := ""
-	for _, v := range This.p.Field {
+	for _, v := range conn.p.Field {
 		if fields == "" {
 			fields = "`" + v.ToField + "`"
 			values = "?"
@@ -107,7 +111,6 @@ func (This *Conn) StarRocksInsert(list []*pluginDriver.PluginDataType) (errData 
 		}
 	}
 	sql := fmt.Sprintf("INSERT INTO `%s`.`%s` (%s) VALUES ", SchemaNme, TableName, fields)
-	//将update, delete,insert 的数据全转成  insert 语句
 	var k int
 	var isFirst = true
 LOOP:
@@ -125,24 +128,24 @@ LOOP:
 		}
 
 		// 这里给每行数据,定义一个 list,防止是中途某一行数据是被允许跳过的,不需要同步的那种情况
-		tmlValList := make([]dbDriver.Value, len(This.p.Field))
-		for j, v := range This.p.Field {
+		tmlValList := make([]dbDriver.Value, len(conn.p.Field))
+		for j, v := range conn.p.Field {
 			var toV dbDriver.Value
-			fromVal := This.getMySQLData(data, k, v.FromMysqlField)
-			toV, err = This.dataTypeTransfer(fromVal, v.ToField, v.ToFieldType, v.ToFieldDefault)
+			fromVal := conn.getMySQLData(data, k, v.FromMysqlField)
+			toV, err = conn.dataTypeTransfer(fromVal, v.ToField, v.ToFieldType, v.ToFieldDefault)
 			if err != nil {
-				log.Printf("[ERROR] output[%s] dataTypeTransfer from field:%s value:%+v to field:%s(%s) \n", OutputName, v.FromMysqlField, fromVal, v.ToField, v.ToFieldType)
-				if !This.p.BifrostMustBeSuccess {
+				logrus.Printf("[ERROR] output[%s] dataTypeTransfer from field:%s value:%+v to field:%s(%s) \n", OutputName, v.FromMysqlField, fromVal, v.ToField, v.ToFieldType)
+				if !conn.p.BifrostMustBeSuccess {
 					err = nil
-					log.Printf("[WARN] output[%s] auto skip data:%+v \n", OutputName, data)
+					logrus.Printf("[WARN] output[%s] auto skip data:%+v \n", OutputName, data)
 					continue LOOP
 				}
-				if This.CheckDataSkip(data) {
-					log.Printf("[WARN] output[%s] use skip data:%+v \n", OutputName, data)
-					This.err = nil
+				if conn.CheckDataSkip(data) {
+					logrus.Printf("[WARN] output[%s] use skip data:%+v \n", OutputName, data)
+					conn.err = nil
 					continue LOOP
 				}
-				return data, This.err
+				return data, conn.err
 			}
 			tmlValList[j] = toV
 		}
@@ -159,7 +162,7 @@ LOOP:
 	if len(valList) == 0 {
 		return nil, nil
 	}
-	_, err = This.conn.conn.Exec(sql, valList)
+	_, err = conn.db.conn.Exec(sql, valList)
 	if err != nil {
 		return list[0], err
 	}

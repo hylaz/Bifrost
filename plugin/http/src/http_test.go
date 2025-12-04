@@ -1,19 +1,15 @@
-//go:build integration
-// +build integration
-
 package src_test
 
 import (
 	"encoding/json"
+	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
+	MyPlugin "github.com/brokercap/Bifrost/plugin/http/src"
+	"github.com/brokercap/Bifrost/sdk/pluginTestData"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"testing"
 	"time"
-
-	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
-	MyPlugin "github.com/brokercap/Bifrost/plugin/http/src"
-	"github.com/brokercap/Bifrost/sdk/pluginTestData"
 )
 
 func TestMain(m *testing.M) {

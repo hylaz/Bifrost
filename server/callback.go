@@ -32,7 +32,7 @@ func (db *db) Callback(data *outputDriver.PluginDataType) {
 	}
 
 	if _, ok := db.lastTransactionTableMap[data.SchemaName]; !ok {
-		db.lastTransactionTableMap[data.SchemaName] = make(map[string]bool, 0)
+		db.lastTransactionTableMap[data.SchemaName] = make(map[string]bool)
 	}
 	db.lastTransactionTableMap[data.SchemaName][data.TableName] = true
 }
@@ -63,44 +63,35 @@ func (db *db) CallbackDoCommit(data *outputDriver.PluginDataType) {
 }
 
 func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {
-	var ChannelKey int
+	var channelKey int
 	var t *Table
 	var getChannelKey = func(SchemaName, tableName string) bool {
 		t = db.GetTable(SchemaName, tableName)
 		if t == nil {
 			return false
 		}
-		ChannelKey = t.ChannelKey
+		channelKey = t.ChannelKey
 		return true
 	}
 
-	//优先判断 全局 *.* 绑定的 channel
-	//再判断 schema.* 绑定的 channel
-	//最后再判断 schema.table 绑定的 channel
-	//这样一样顺序是为了 防止  *.* 绑了的之后,某个表又独立的去绑了其他 channel,防止数据不一致的情况
-	for {
-		b = getChannelKey("*", "*")
-		if b {
-			break
-		}
-		b = getChannelKey(data.AliasSchemaName, "*")
-		if b {
-			break
-		}
-		b = getChannelKey(data.AliasSchemaName, data.AliasTableName)
-		if b {
-			break
-		}
+	if getChannelKey("*", "*") {
+		b = true
+	} else if getChannelKey(data.AliasSchemaName, "*") {
+		b = true
+	} else if getChannelKey(data.AliasSchemaName, data.AliasTableName) {
+		b = true
+	} else {
 		return
 	}
 
 	var i = 0
 	var c *Channel
 	for {
-		if _, ok := db.channelMap[ChannelKey]; !ok {
+
+		if _, ok := db.channelMap[channelKey]; !ok {
 			return
 		}
-		c = db.channelMap[ChannelKey]
+		c = db.channelMap[channelKey]
 		c.RLock()
 		if c.Status == CLOSED {
 			c.RUnlock()
@@ -108,9 +99,8 @@ func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {
 		}
 		if c.Status != RUNNING {
 			c.RUnlock()
-
 			if i%600 == 0 {
-				logrus.Printf("ChannelKey:%T , status:%s , data:%T , ", ChannelKey, c.Status, data)
+				logrus.Printf("channelKey:%T,status:%s,data:%T", channelKey, c.Status, data)
 			}
 			time.Sleep(1 * time.Second)
 			i++
@@ -124,7 +114,7 @@ func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {
 	if chanName != nil {
 		chanName <- data
 	} else {
-		logrus.Printf("SchemaName:%s, TableName:%s , ChannelKey:%T chan is nil , data:%T \r\n , ", data.AliasSchemaName, data.AliasTableName, ChannelKey, data)
+		logrus.Printf("SchemaName:%s, TableName:%s , ChannelKey:%T chan is nil , data:%T , ", data.AliasSchemaName, data.AliasTableName, channelKey, data)
 	}
 	return
 }

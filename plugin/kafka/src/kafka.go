@@ -8,21 +8,21 @@ import (
 	"time"
 )
 
-const VERSION = "v2.0.5"
-const BIFROST_VERION = "v2.0.5"
+const Version = "v2.0.5"
+const BifrostVersion = "v2.0.5"
 
 func init() {
-	pluginDriver.Register("kafka", NewConn, VERSION, BIFROST_VERION)
+	pluginDriver.Register("kafka", NewKafkaConn, Version, BifrostVersion)
 }
 
 const (
-	RUNNING int8 = 1
-	CLOSED  int8 = 0
+	Runing int8 = 1
+	Closed int8 = 0
 )
 
-type Conn struct {
+type KafkaConn struct {
 	pluginDriver.PluginDriverInterface
-	Uri      *string
+	Uri      string
 	status   int8
 	err      error
 	p        *PluginParam
@@ -42,31 +42,31 @@ type PluginParam struct {
 	commitBinlogList     []*pluginDriver.PluginDataType
 }
 
-func NewConn() pluginDriver.Driver {
-	f := &Conn{
-		status: CLOSED,
+func NewKafkaConn() pluginDriver.Driver {
+	f := &KafkaConn{
+		status: Closed,
 	}
 	return f
 }
 
-func (This *Conn) SetOption(uri *string, param map[string]interface{}) {
-	This.Uri = uri
+func (conn *KafkaConn) SetOption(uri *string, param map[string]interface{}) {
+	conn.Uri = *uri
 	return
 }
 
-func (This *Conn) Open() error {
-	This.Connect()
+func (conn *KafkaConn) Open() error {
+	conn.Connect()
 	return nil
 }
 
-func (This *Conn) GetUriExample() string {
+func (conn *KafkaConn) GetUriExample() string {
 	return "127.0.0.1:9092,127.0.0.1:9093"
 }
 
-func (This *Conn) CheckUri() error {
-	config, err := getKafkaConnectConfig(ParseDSN(*This.Uri))
+func (conn *KafkaConn) CheckUri() error {
+	config, err := getKafkaConnectConfig(parseDSN(conn.Uri))
 	if err != nil {
-		This.err = err
+		conn.err = err
 		return err
 	}
 	config.ConnectConfig.Producer.Return.Successes = true
@@ -78,31 +78,31 @@ func (This *Conn) CheckUri() error {
 	return err
 }
 
-func (This *Conn) newProducer() bool {
-	config, err := getKafkaConnectConfig(ParseDSN(*This.Uri))
+func (conn *KafkaConn) newProducer() bool {
+	config, err := getKafkaConnectConfig(parseDSN(conn.Uri))
 	if err != nil {
 		return false
 	}
 	config.ConnectConfig.Producer.Return.Successes = true
 	config.ConnectConfig.Producer.Return.Errors = true
-	config.ConnectConfig.Producer.RequiredAcks = This.p.RequiredAcks
-	config.ConnectConfig.Producer.Timeout = time.Duration(This.p.Timeout) * time.Second
-	This.producer, This.err = sarama.NewSyncProducer(config.BrokerServerList, config.ConnectConfig)
-	if This.err == nil {
-		This.status = RUNNING
+	config.ConnectConfig.Producer.RequiredAcks = conn.p.RequiredAcks
+	config.ConnectConfig.Producer.Timeout = time.Duration(conn.p.Timeout) * time.Second
+	conn.producer, conn.err = sarama.NewSyncProducer(config.BrokerServerList, config.ConnectConfig)
+	if conn.err == nil {
+		conn.status = Runing
 		return true
 	} else {
 		return false
 	}
 }
 
-func (This *Conn) Connect() bool {
-	This.err = fmt.Errorf("no producer")
-	This.status = CLOSED
+func (conn *KafkaConn) Connect() bool {
+	conn.err = fmt.Errorf("no producer")
+	conn.status = Closed
 	return true
 }
 
-func (This *Conn) GetParam(p interface{}) (interface{}, error) {
+func (conn *KafkaConn) GetParam(p interface{}) (interface{}, error) {
 	s, err := json.Marshal(p)
 	if err != nil {
 		return nil, err
@@ -121,7 +121,6 @@ func (This *Conn) GetParam(p interface{}) (interface{}, error) {
 	if param.Timeout < 0 {
 		param.Timeout = 0
 	}
-
 	switch param.RequiredAcks {
 	case sarama.NoResponse, sarama.WaitForAll, sarama.WaitForLocal:
 		break
@@ -133,87 +132,88 @@ func (This *Conn) GetParam(p interface{}) (interface{}, error) {
 		param.dataList = make([]*sarama.ProducerMessage, 0)
 		param.commitBinlogList = make([]*pluginDriver.PluginDataType, 0)
 	}
-	This.p = param
+	conn.p = param
 	return param, nil
 }
 
-func (This *Conn) SetParam(p interface{}) (interface{}, error) {
+func (conn *KafkaConn) SetParam(p any) (any, error) {
 	if p == nil {
 		return nil, fmt.Errorf("param is nil")
 	}
 	switch p.(type) {
 	case *PluginParam:
-		This.p = p.(*PluginParam)
+		conn.p = p.(*PluginParam)
 		return p, nil
 	default:
-		return This.GetParam(p)
+		return conn.GetParam(p)
 	}
 }
 
-func (This *Conn) ReConnect() bool {
+func (conn *KafkaConn) ReConnect() bool {
 	func() {
 		defer func() {
 			if err := recover(); err != nil {
 				return
 			}
 		}()
-		if This.producer != nil {
-			This.producer.Close()
+		if conn.producer != nil {
+			conn.producer.Close()
 		}
 	}()
-	r := This.newProducer()
-	if r == true {
+
+	r := conn.newProducer()
+	if r {
 		return true
 	} else {
 		return false
 	}
 }
 
-func (This *Conn) Close() bool {
-	if This.producer != nil {
+func (conn *KafkaConn) Close() bool {
+	if conn.producer != nil {
 		func() {
 			defer func() {
 				if err := recover(); err != nil {
 					return
 				}
 			}()
-			This.producer.Close()
+			conn.producer.Close()
 		}()
 	}
-	This.producer = nil
-	This.status = CLOSED
+	conn.producer = nil
+	conn.status = Closed
 	return true
 }
 
-func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data, retry, false)
+func (conn *KafkaConn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToList(data, retry, false)
 }
 
-func (This *Conn) Update(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data, retry, false)
+func (conn *KafkaConn) Update(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToList(data, retry, false)
 }
 
-func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data, retry, false)
+func (conn *KafkaConn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToList(data, retry, false)
 }
 
-func (This *Conn) Query(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data, retry, false)
+func (conn *KafkaConn) Query(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToList(data, retry, false)
 }
 
-func (This *Conn) Commit(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(data, retry, true)
+func (conn *KafkaConn) Commit(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToList(data, retry, true)
 }
 
-func (This *Conn) getMsg(data *pluginDriver.PluginDataType) (*sarama.ProducerMessage, error) {
-	Topic := fmt.Sprint(pluginDriver.TransfeResult(This.p.Topic, data, len(data.Rows)-1))
+func (conn *KafkaConn) getMsg(data *pluginDriver.PluginDataType) (*sarama.ProducerMessage, error) {
+	Topic := fmt.Sprint(pluginDriver.TransfeResult(conn.p.Topic, data, len(data.Rows)-1))
 	msg := &sarama.ProducerMessage{}
 	msg.Topic = Topic
-	if This.p.Key != "" {
-		Key := fmt.Sprint(pluginDriver.TransfeResult(This.p.Key, data, len(data.Rows)-1))
+	if conn.p.Key != "" {
+		Key := fmt.Sprint(pluginDriver.TransfeResult(conn.p.Key, data, len(data.Rows)-1))
 		msg.Key = sarama.StringEncoder(Key)
 	}
-	toOtherObjectTypeData, _ := pluginDriver.ToOtherObject(data, This.p.OtherObjectType)
+	toOtherObjectTypeData, _ := pluginDriver.ToOtherObject(data, conn.p.OtherObjectType)
 	c, err := json.Marshal(toOtherObjectTypeData)
 	if err != nil {
 		return nil, err
@@ -222,102 +222,106 @@ func (This *Conn) getMsg(data *pluginDriver.PluginDataType) (*sarama.ProducerMes
 	return msg, nil
 }
 
-func (This *Conn) sendToList(data *pluginDriver.PluginDataType, retry bool, isCommit bool) (LastSuccessCommitData *pluginDriver.PluginDataType, Errdata *pluginDriver.PluginDataType, err error) {
-	if data == nil && retry == true {
-		LastSuccessCommitData, err = This.sendToKafkaByBatch()
+func (conn *KafkaConn) sendToList(data *pluginDriver.PluginDataType, retry bool, isCommit bool) (LastSuccessCommitData *pluginDriver.PluginDataType, Errdata *pluginDriver.PluginDataType, err error) {
+	if data == nil && retry {
+		LastSuccessCommitData, err = conn.sendToKafkaByBatch()
 		goto endErr
 	}
-	if This.p.BatchSize > 1 {
-		if retry == false {
+
+	if conn.p.BatchSize > 1 {
+		if !retry {
 			var msg *sarama.ProducerMessage
-			// 假如 非 commit 事件 或者 没有过滤 sql 事件，则需要将数据放到  list 里
-			if !isCommit || !This.p.BifrostFilterQuery {
-				msg, err = This.getMsg(data)
+			if !isCommit || !conn.p.BifrostFilterQuery {
+				msg, err = conn.getMsg(data)
 				if err != nil {
 					goto endErr
 				}
-				This.p.dataList = append(This.p.dataList, msg)
+				conn.p.dataList = append(conn.p.dataList, msg)
 			}
+
 			if isCommit {
-				n0 := len(This.p.dataList) / This.p.BatchSize
-				// 计算出 commit 提交是在哪一个 合并组里
-				if len(This.p.commitBinlogList)-1 < n0 {
-					This.p.commitBinlogList = append(This.p.commitBinlogList, data)
+				n0 := len(conn.p.dataList) / conn.p.BatchSize
+				if len(conn.p.commitBinlogList)-1 < n0 {
+					conn.p.commitBinlogList = append(conn.p.commitBinlogList, data)
 				} else {
-					This.p.commitBinlogList[n0] = data
+					conn.p.commitBinlogList[n0] = data
 				}
 			}
 		}
-		if len(This.p.dataList) >= This.p.BatchSize {
-			LastSuccessCommitData, err = This.sendToKafkaByBatch()
+
+		if len(conn.p.dataList) >= conn.p.BatchSize {
+			LastSuccessCommitData, err = conn.sendToKafkaByBatch()
 		}
 	} else {
-		if isCommit && This.p.BifrostFilterQuery {
+		if isCommit && conn.p.BifrostFilterQuery {
 			return LastSuccessCommitData, nil, nil
 		}
 		var msg *sarama.ProducerMessage
-		msg, err = This.getMsg(data)
+		msg, err = conn.getMsg(data)
 		if err != nil {
 			goto endErr
 		}
-		if This.status != RUNNING {
-			This.ReConnect()
-			if This.status != RUNNING {
-				err = This.err
+		if conn.status != Runing {
+			conn.ReConnect()
+			if conn.status != Runing {
+				err = conn.err
 				goto endErr
 			}
 		}
-		_, _, err = This.producer.SendMessage(msg)
+		_, _, err = conn.producer.SendMessage(msg)
 		if err == nil {
 			LastSuccessCommitData = data
 		}
 	}
 endErr:
 	if err != nil {
-		if !This.p.BifrostMustBeSuccess {
+		if !conn.p.BifrostMustBeSuccess {
 			return LastSuccessCommitData, nil, nil
 		}
-		if This.err != nil {
-			This.status = CLOSED
-			return nil, nil, This.err
+		if conn.err != nil {
+			conn.status = Closed
+			return nil, nil, conn.err
 		}
 		return nil, nil, err
 	}
 	return LastSuccessCommitData, nil, nil
 }
 
-func (This *Conn) sendToKafkaByBatch() (*pluginDriver.PluginDataType, error) {
-	if This.status != RUNNING {
-		This.ReConnect()
-		if This.status != RUNNING {
-			return nil, This.err
+func (conn *KafkaConn) sendToKafkaByBatch() (*pluginDriver.PluginDataType, error) {
+	if conn.status != Runing {
+		conn.ReConnect()
+		if conn.status != Runing {
+			return nil, conn.err
 		}
 	}
-	if len(This.p.dataList) == 0 {
+
+	if len(conn.p.dataList) == 0 {
 		return nil, nil
 	}
+
 	var err error
 	var binlogEvent *pluginDriver.PluginDataType
-	if len(This.p.dataList) > This.p.BatchSize {
-		list := This.p.dataList[:This.p.BatchSize]
-		err = This.producer.SendMessages(list)
+	if len(conn.p.dataList) > conn.p.BatchSize {
+		list := conn.p.dataList[:conn.p.BatchSize]
+		err = conn.producer.SendMessages(list)
 		if err == nil {
-			This.p.dataList = This.p.dataList[This.p.BatchSize:]
-			if len(This.p.commitBinlogList) > 0 {
-				binlogEvent = This.p.commitBinlogList[0]
-				This.p.commitBinlogList = This.p.commitBinlogList[1:]
+			conn.p.dataList = conn.p.dataList[conn.p.BatchSize:]
+			if len(conn.p.commitBinlogList) > 0 {
+				binlogEvent = conn.p.commitBinlogList[0]
+				conn.p.commitBinlogList = conn.p.commitBinlogList[1:]
 			}
 		}
 	} else {
-		err = This.producer.SendMessages(This.p.dataList)
+		err = conn.producer.SendMessages(conn.p.dataList)
 		if err == nil {
-			This.p.dataList = make([]*sarama.ProducerMessage, 0)
-			if len(This.p.commitBinlogList) > 0 {
-				binlogEvent = This.p.commitBinlogList[0]
-				This.p.commitBinlogList = This.p.commitBinlogList[1:]
+			conn.p.dataList = make([]*sarama.ProducerMessage, 0)
+			if len(conn.p.commitBinlogList) > 0 {
+				binlogEvent = conn.p.commitBinlogList[0]
+				conn.p.commitBinlogList = conn.p.commitBinlogList[1:]
 			}
 		}
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -328,6 +332,6 @@ func (This *Conn) sendToKafkaByBatch() (*pluginDriver.PluginDataType, error) {
 	}
 }
 
-func (This *Conn) TimeOutCommit() (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.sendToList(nil, true, false)
+func (conn *KafkaConn) TimeOutCommit() (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	return conn.sendToList(nil, true, false)
 }

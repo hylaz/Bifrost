@@ -3,24 +3,23 @@ package src
 import (
 	"encoding/json"
 	"fmt"
+	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	"net/http"
 	"strings"
 	"time"
-
-	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 )
 
-const VERSION = "v1.8.5"
-const BIFROST_VERION = "v1.8.5"
+const Version = "v1.8.5"
+const BifrostVersion = "v1.8.5"
 
 func init() {
-	pluginDriver.Register("http", NewConn, VERSION, BIFROST_VERION)
+	pluginDriver.Register("http", NewHttpConn, Version, BifrostVersion)
 }
 
-type Conn struct {
+type HttpConn struct {
 	pluginDriver.PluginDriverInterface
-	uri    *string
-	url    string // 解析过后的 http url，不是传参进来的  uri
+	uri    string
+	url    string
 	user   string
 	pwd    string
 	status string
@@ -31,38 +30,38 @@ type Conn struct {
 type HttpContentType string
 
 const (
-	HTTP_CONTENT_TYPE_JSON_RAW HttpContentType = "application/json-raw"
+	JsonRaw HttpContentType = "application/json-raw"
 )
 
 type PluginParam struct {
-	Timeout            int
-	ContentType        HttpContentType
-	BifrostFilterQuery bool // bifrost server 保留,是否过滤sql事件
+	Timeout     int
+	ContentType HttpContentType
+	FilterQuery bool
 }
 
-func NewConn() pluginDriver.Driver {
-	f := &Conn{
+func NewHttpConn() pluginDriver.Driver {
+	f := &HttpConn{
 		status: "close",
 	}
 	return f
 }
 
-func (This *Conn) SetOption(uri *string, param map[string]interface{}) {
-	This.uri = uri
+func (httpConn *HttpConn) SetOption(uri *string, param map[string]interface{}) {
+	httpConn.uri = *uri
 	return
 }
 
-func (This *Conn) Open() error {
-	This.user, This.pwd, This.url = GetUriParam(*This.uri)
+func (httpConn *HttpConn) Open() error {
+	httpConn.user, httpConn.pwd, httpConn.url = GetUriParam(httpConn.uri)
 	return nil
 }
 
-func (This *Conn) GetUriExample() string {
+func (httpConn *HttpConn) GetUriExample() string {
 	return "user:pwd@http://a.Bifrist.com?bifrost_api=ok ; http://a.Bifrist.com?bifrost_api=ok"
 }
 
-func (This *Conn) CheckUri() error {
-	user, pwd, url := GetUriParam(*This.uri)
+func (httpConn *HttpConn) CheckUri() error {
+	user, pwd, url := GetUriParam(httpConn.uri)
 	client := &http.Client{Timeout: 5 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if user != "" {
@@ -71,21 +70,20 @@ func (This *Conn) CheckUri() error {
 	if err != nil {
 		return err
 	}
-	resp, err2 := client.Do(req)
-	if err2 != nil {
-		return err2
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		resp.Body.Close()
 		return nil
 	}
-	resp.Body.Close()
 	return fmt.Errorf("http code:%d", resp.StatusCode)
 }
 
 func GetUriParam(uri string) (string, string, string) {
 	i := strings.IndexAny(uri, "@")
-	var user, pwd string = "", ""
+	var user, pwd = "", ""
 	var url string
 	if i > 0 {
 		t := uri[0:i]
@@ -103,123 +101,127 @@ func GetUriParam(uri string) (string, string, string) {
 	return user, pwd, url
 }
 
-func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
+func (httpConn *HttpConn) GetParam(p interface{}) (*PluginParam, error) {
 	s, err := json.Marshal(p)
 	if err != nil {
 		return nil, err
 	}
 	var param PluginParam
-	err2 := json.Unmarshal(s, &param)
-	if err2 != nil {
-		return nil, err2
+	err = json.Unmarshal(s, &param)
+	if err != nil {
+		return nil, err
 	}
 	if param.Timeout == 0 {
 		param.Timeout = 10
 	}
-	if param.ContentType != HTTP_CONTENT_TYPE_JSON_RAW {
+	if param.ContentType != JsonRaw {
 		return nil, fmt.Errorf("only support application/json(raw)")
 	}
-	This.p = &param
+	httpConn.p = &param
 	return &param, nil
 }
 
-func (This *Conn) SetParam(p interface{}) (interface{}, error) {
+func (httpConn *HttpConn) SetParam(p interface{}) (interface{}, error) {
 	if p == nil {
 		return nil, fmt.Errorf("param is nil")
 	}
 	switch p.(type) {
 	case *PluginParam:
-		This.p = p.(*PluginParam)
+		httpConn.p = p.(*PluginParam)
 		return p, nil
 	default:
-		return This.GetParam(p)
+		return httpConn.GetParam(p)
 	}
 }
 
-func (This *Conn) httpPost(data *pluginDriver.PluginDataType) error {
+func (httpConn *HttpConn) httpPost(data *pluginDriver.PluginDataType) error {
 	var req *http.Request
 	var client *http.Client
 	var err error
-	switch This.p.ContentType {
-	case HTTP_CONTENT_TYPE_JSON_RAW:
+	switch httpConn.p.ContentType {
+	case JsonRaw:
 		c, err := json.Marshal(data)
 		if err != nil {
 			return err
 		}
 		body := strings.NewReader("\n" + string(c))
-		req, err = http.NewRequest("POST", This.url, body)
+		req, err = http.NewRequest("POST", httpConn.url, body)
 		req.Header.Set("Content-Type", "application/json")
 		break
 	default:
 		return fmt.Errorf("only support application/json(raw)")
 	}
+
 	if err != nil {
 		return err
 	}
-	client = &http.Client{Timeout: time.Duration(This.p.Timeout) * time.Second}
-	if This.user != "" {
-		req.SetBasicAuth(This.user, This.pwd)
+
+	client = &http.Client{Timeout: time.Duration(httpConn.p.Timeout) * time.Second}
+	if httpConn.user != "" {
+		req.SetBasicAuth(httpConn.user, httpConn.pwd)
 	}
+
 	var resp *http.Response
 	resp, err = client.Do(req)
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode == 200 || (resp.StatusCode > 200 && resp.StatusCode < 300) {
-		resp.Body.Close()
 		return nil
 	}
-	resp.Body.Close()
 	return fmt.Errorf("http code:%d", resp.StatusCode)
 }
 
-func (This *Conn) Close() bool {
+func (httpConn *HttpConn) Close() bool {
 	return true
 }
 
-func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	err := This.httpPost(data)
+func (httpConn *HttpConn) Insert(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	err := httpConn.httpPost(data)
 	if err != nil {
 		return nil, data, err
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) Update(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	err := This.httpPost(data)
+func (httpConn *HttpConn) Update(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	err := httpConn.httpPost(data)
 	if err != nil {
 		return nil, data, err
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	err := This.httpPost(data)
+func (httpConn *HttpConn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	err := httpConn.httpPost(data)
 	if err != nil {
 		return nil, data, err
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) Query(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	if This.p.BifrostFilterQuery {
+func (httpConn *HttpConn) Query(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+
+	if httpConn.p.FilterQuery {
 		return data, nil, nil
 	}
-	err := This.httpPost(data)
+
+	err := httpConn.httpPost(data)
 	if err != nil {
-		This.err = err
+		httpConn.err = err
 		return nil, data, err
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) Commit(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	if This.p.BifrostFilterQuery {
+func (httpConn *HttpConn) Commit(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+	if httpConn.p.FilterQuery {
 		return data, nil, nil
 	}
-	err := This.httpPost(data)
+	err := httpConn.httpPost(data)
 	if err != nil {
-		This.err = err
+		httpConn.err = err
 		return nil, data, err
 	}
 	return data, nil, nil

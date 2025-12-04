@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-func ParseDSN(dsn string) (params map[string]string) {
+func parseDSN(dsn string) (params map[string]string) {
 	params = make(map[string]string, 0)
 	if dsn == "" {
 		return

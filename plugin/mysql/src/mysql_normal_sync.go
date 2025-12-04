@@ -1,21 +1,12 @@
-/*
-普通模式同步
-update 转成 insert on update
-insert 转成 replace into
-delete 转成 delete
-只要是同一条数据，只要有遍历过，后面遍历出来的数据，则不再进行操作
-*/
 package src
 
 import (
 	dbDriver "database/sql/driver"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
-func (This *Conn) CommitNormal(list []*pluginDriver.PluginDataType) (errData *pluginDriver.PluginDataType) {
-
-	//因为数据是有序写到list里的，里有 update,delete,insert，所以这里我们反向遍历
+func (conn *MysqlConn) CommitNormal(list []*pluginDriver.PluginDataType) (errData *pluginDriver.PluginDataType) {
 
 	//用于存储数据库中最后一次操作记录
 	opMap := make(map[interface{}]*opLog, 0)
@@ -28,92 +19,92 @@ LOOP:
 		data := list[i]
 		switch data.EventType {
 		case "update":
-			val := make([]dbDriver.Value, This.p.fieldCount*2)
-			for i, v := range This.p.Field {
+			val := make([]dbDriver.Value, conn.p.fieldCount*2)
+			for i, v := range conn.p.Field {
 				var toV dbDriver.Value
-				toV, This.err = This.dataTypeTransfer(This.getMySQLData(data, 1, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
-				if This.err != nil {
-					if !This.p.BifrostMustBeSuccess {
-						This.err = nil
+				toV, conn.err = conn.dataTypeTransfer(conn.getMySQLData(data, 1, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
+				if conn.err != nil {
+					if !conn.p.BifrostMustBeSuccess {
+						conn.err = nil
 						continue LOOP
 					}
-					if This.CheckDataSkip(data) {
-						This.err = nil
+					if conn.CheckDataSkip(data) {
+						conn.err = nil
 						continue LOOP
 					}
 					return data
 				}
 				val[i] = toV
 				//第几个字段 + 总字段数量 - 1  算出，on update 所在数组中的位置
-				val[i+This.p.fieldCount] = toV
+				val[i+conn.p.fieldCount] = toV
 			}
 
-			if checkOpMap(opMap, data.Rows[1][This.p.fromPriKey], "update") == true {
+			if checkOpMap(opMap, data.Rows[1][conn.p.fromPriKey], "update") == true {
 				continue
 			}
-			stmt = This.getStmt(UPDATE)
+			stmt = conn.getStmt(UPDATE)
 			if stmt == nil {
 				return data
 			}
-			_, This.conn.err = stmt.Exec(val)
-			if This.conn.err != nil {
-				log.Println("plugin mysql update exec err:", This.conn.err, " data:", val)
-				if This.CheckDataSkip(data) {
-					This.conn.err = nil
+			_, conn.db.err = stmt.Exec(val)
+			if conn.db.err != nil {
+				logrus.Println("plugin mysql update exec err:", conn.db.err, " data:", val)
+				if conn.CheckDataSkip(data) {
+					conn.db.err = nil
 					continue LOOP
 				}
 				return data
 			}
-			setOpMapVal(opMap, data.Rows[1][This.p.fromPriKey], nil, "update")
+			setOpMapVal(opMap, data.Rows[1][conn.p.fromPriKey], nil, "update")
 			break
 		case "delete":
 			where := make([]dbDriver.Value, 0)
-			for _, v := range This.p.PriKey {
+			for _, v := range conn.p.PriKey {
 				var toV dbDriver.Value
-				toV, This.err = This.dataTypeTransfer(This.getMySQLData(data, 0, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
-				if This.err != nil {
-					if !This.p.BifrostMustBeSuccess {
-						This.err = nil
+				toV, conn.err = conn.dataTypeTransfer(conn.getMySQLData(data, 0, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
+				if conn.err != nil {
+					if !conn.p.BifrostMustBeSuccess {
+						conn.err = nil
 						continue LOOP
 					}
-					if This.CheckDataSkip(data) {
-						This.err = nil
+					if conn.CheckDataSkip(data) {
+						conn.err = nil
 						continue LOOP
 					}
 					return data
 				}
 				where = append(where, toV)
 			}
-			if checkOpMap(opMap, data.Rows[0][This.p.fromPriKey], "delete") == false {
-				stmt = This.getStmt(DELETE)
+			if checkOpMap(opMap, data.Rows[0][conn.p.fromPriKey], "delete") == false {
+				stmt = conn.getStmt(DELETE)
 				if stmt == nil {
 					return data
 				}
-				_, This.conn.err = stmt.Exec(where)
-				if This.conn.err != nil {
-					log.Println("plugin mysql delete exec err:", This.conn.err, " where:", where)
-					if This.CheckDataSkip(data) {
-						This.conn.err = nil
+				_, conn.db.err = stmt.Exec(where)
+				if conn.db.err != nil {
+					logrus.Println("plugin mysql delete exec err:", conn.db.err, " where:", where)
+					if conn.CheckDataSkip(data) {
+						conn.db.err = nil
 						continue LOOP
 					}
 					return data
 				}
-				setOpMapVal(opMap, data.Rows[0][This.p.fromPriKey], nil, "delete")
+				setOpMapVal(opMap, data.Rows[0][conn.p.fromPriKey], nil, "delete")
 			}
 			break
 		case "insert":
 			val := make([]dbDriver.Value, 0)
 			i := 0
-			for _, v := range This.p.Field {
+			for _, v := range conn.p.Field {
 				var toV dbDriver.Value
-				toV, This.err = This.dataTypeTransfer(This.getMySQLData(data, 0, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
-				if This.err != nil {
-					if !This.p.BifrostMustBeSuccess {
-						This.err = nil
+				toV, conn.err = conn.dataTypeTransfer(conn.getMySQLData(data, 0, v.FromMysqlField), v.ToField, v.ToFieldType, v.ToFieldDefault)
+				if conn.err != nil {
+					if !conn.p.BifrostMustBeSuccess {
+						conn.err = nil
 						continue LOOP
 					}
-					if This.CheckDataSkip(data) {
-						This.err = nil
+					if conn.CheckDataSkip(data) {
+						conn.err = nil
 						continue LOOP
 					}
 					return data
@@ -122,23 +113,23 @@ LOOP:
 				i++
 			}
 
-			if checkOpMap(opMap, data.Rows[0][This.p.fromPriKey], "insert") == true {
+			if checkOpMap(opMap, data.Rows[0][conn.p.fromPriKey], "insert") == true {
 				continue
 			}
-			stmt = This.getStmt(REPLACE_INSERT)
+			stmt = conn.getStmt(REPLACE_INSERT)
 			if stmt == nil {
 				return data
 			}
-			_, This.conn.err = stmt.Exec(val)
-			if This.conn.err != nil {
-				log.Println("plugin mysql insert exec err:", This.conn.err, " data:", val)
-				if This.CheckDataSkip(data) {
-					This.conn.err = nil
+			_, conn.db.err = stmt.Exec(val)
+			if conn.db.err != nil {
+				logrus.Println("plugin mysql insert exec err:", conn.db.err, " data:", val)
+				if conn.CheckDataSkip(data) {
+					conn.db.err = nil
 					continue LOOP
 				}
 				return data
 			}
-			setOpMapVal(opMap, data.Rows[0][This.p.fromPriKey], &val, "insert")
+			setOpMapVal(opMap, data.Rows[0][conn.p.fromPriKey], &val, "insert")
 			break
 		}
 	}
