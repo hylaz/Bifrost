@@ -6,7 +6,7 @@ import (
 	"fmt"
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 	elastic "github.com/olivere/elastic/v7"
-	"log"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"net/url"
 	"runtime/debug"
@@ -19,12 +19,12 @@ const VERSION = "v1.8.5-beta"
 const BIFROST_VERION = "v1.8.5"
 
 func init() {
-	pluginDriver.Register("Elasticsearch", NewConn, VERSION, BIFROST_VERION)
+	pluginDriver.Register("Elasticsearch", NewElasticsearchConn, VERSION, BIFROST_VERION)
 }
 
-type Conn struct {
+type ElasticsearchConn struct {
 	pluginDriver.PluginDriverInterface
-	Uri    *string
+	Uri    string
 	status string
 	client *elastic.Client
 
@@ -60,35 +60,35 @@ type EsServer struct {
 	RetryCount int
 }
 
-func NewConn() pluginDriver.Driver {
-	f := &Conn{status: "close", err: fmt.Errorf("close")}
+func NewElasticsearchConn() pluginDriver.Driver {
+	f := &ElasticsearchConn{status: "close", err: fmt.Errorf("close")}
 	return f
 }
 
-func (This *Conn) SetOption(uri *string, param map[string]interface{}) {
-	This.Uri = uri
+func (conn *ElasticsearchConn) SetOption(uri *string, param map[string]interface{}) {
+	conn.Uri = *uri
 	return
 }
 
-func (This *Conn) Open() error {
-	This.esServerInfo = This.getUriParam(*This.Uri)
-	This.Connect()
+func (conn *ElasticsearchConn) Open() error {
+	conn.esServerInfo = conn.getUriParam(conn.Uri)
+	conn.Connect()
 	return nil
 }
 
-func (This *Conn) GetUriExample() string {
+func (conn *ElasticsearchConn) GetUriExample() string {
 	return "http://localhost:9200?user=root&password=rootroot"
 }
 
-func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
+func (conn *ElasticsearchConn) GetParam(p interface{}) (*PluginParam, error) {
 	s, err := json.Marshal(p)
 	if err != nil {
 		return nil, err
 	}
 	var param PluginParam
-	err2 := json.Unmarshal(s, &param)
-	if err2 != nil {
-		return nil, err2
+	err = json.Unmarshal(s, &param)
+	if err != nil {
+		return nil, err
 	}
 	if param.EsIndexName == "" {
 		return nil, fmt.Errorf("EsIndexName can't be empty")
@@ -97,37 +97,37 @@ func (This *Conn) GetParam(p interface{}) (*PluginParam, error) {
 	param.hadMapping = map[string]bool{}
 	param.Data = NewTableData()
 	if param.BatchSize == 0 {
-		param.BatchSize = 100 // 默认100
+		param.BatchSize = 100
 	}
 	return &param, nil
 }
 
-func (This *Conn) SetParam(p interface{}) (interface{}, error) {
+func (conn *ElasticsearchConn) SetParam(p interface{}) (interface{}, error) {
 	if p == nil {
 		return nil, fmt.Errorf("param is nil")
 	}
 	switch p.(type) {
 	case *PluginParam:
-		This.p = p.(*PluginParam)
+		conn.p = p.(*PluginParam)
 		return p, nil
 	default:
-		param, _ := This.GetParam(p)
-		This.p = param
+		param, _ := conn.GetParam(p)
+		conn.p = param
 		return param, nil
 	}
 }
 
-func (This *Conn) CheckUri() error {
+func (conn *ElasticsearchConn) CheckUri() error {
 	var err error
-	This.Connect()
-	if This.err != nil {
-		return This.err
+	conn.Connect()
+	if conn.err != nil {
+		return conn.err
 	}
-	_, err = This.GetVersion()
+	_, err = conn.GetVersion()
 	return err
 }
 
-func (This *Conn) getUriParam(uri string) (EsServerInfo *EsServer) {
+func (conn *ElasticsearchConn) getUriParam(uri string) (EsServerInfo *EsServer) {
 	EsServerInfo = &EsServer{}
 	EsServerInfo.Urls = make([]string, 0)
 	for _, httpUrl := range strings.Split(uri, ",") {
@@ -175,10 +175,10 @@ func (This *Conn) getUriParam(uri string) (EsServerInfo *EsServer) {
 	return
 }
 
-func (This *Conn) Connect() bool {
+func (conn *ElasticsearchConn) Connect() bool {
 
 	// This.Uri   http://127.0.0.1:9200?user=root&password=rootroot
-	EsServerInfo := This.getUriParam(*This.Uri)
+	EsServerInfo := conn.getUriParam(conn.Uri)
 	options := []elastic.ClientOptionFunc{
 		elastic.SetURL(EsServerInfo.Urls...),
 		elastic.SetSniff(EsServerInfo.Sniff),
@@ -193,29 +193,28 @@ func (This *Conn) Connect() bool {
 
 	client, err := elastic.NewClient(options...)
 	if err != nil {
-		This.err = err
+		conn.err = err
 		return false
 	}
-	This.esServerInfo = EsServerInfo
-	This.client = client
-	This.err = nil
-	This.status = "running"
-
+	conn.esServerInfo = EsServerInfo
+	conn.client = client
+	conn.err = nil
+	conn.status = "running"
 	return true
 }
 
-func (This *Conn) ReConnect() bool {
+func (conn *ElasticsearchConn) ReConnect() bool {
 	defer func() {
 		if err := recover(); err != nil {
-			This.err = fmt.Errorf(fmt.Sprint(err))
+			conn.err = fmt.Errorf(fmt.Sprint(err))
 		}
 	}()
-	This.Close()
-	This.Connect()
+	conn.Close()
+	conn.Connect()
 	return true
 }
 
-func (This *Conn) Close() bool {
+func (conn *ElasticsearchConn) Close() bool {
 	func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -223,19 +222,19 @@ func (This *Conn) Close() bool {
 			}
 		}()
 	}()
-	This.status = "close"
-	This.client = nil
-	This.err = fmt.Errorf("close")
+	conn.status = "close"
+	conn.client = nil
+	conn.err = fmt.Errorf("close")
 	return true
 }
 
-func (This *Conn) GetVersion() (Version string, err error) {
+func (conn *ElasticsearchConn) GetVersion() (Version string, err error) {
 
-	if This.err != nil {
-		This.Connect()
+	if conn.err != nil {
+		conn.Connect()
 	}
-	EsServerInfo := This.getUriParam(*This.Uri)
-	Version, err = This.client.ElasticsearchVersion(EsServerInfo.Urls[0])
+	EsServerInfo := conn.getUriParam(conn.Uri)
+	Version, err = conn.client.ElasticsearchVersion(EsServerInfo.Urls[0])
 	return
 }
 
@@ -249,77 +248,75 @@ func NewTableData() *TableDataStruct {
 }
 
 // 假如没有配置指定 PrimaryKey (es 中的文档ID) 的时候，将 原表中的 Pri 主键当作 es 的文档ID
-func (This *Conn) initPrimaryKeys(data *pluginDriver.PluginDataType) {
-	if This.p.PrimaryKey == "" {
-		This.p.primaryKeys = data.Pri
+func (conn *ElasticsearchConn) initPrimaryKeys(data *pluginDriver.PluginDataType) {
+	if conn.p.PrimaryKey == "" {
+		conn.p.primaryKeys = data.Pri
 	}
 }
 
-func (This *Conn) doCreateMapping() {
-	EsIndexName := This.p.EsIndexName
-	if This.p.Mapping == "" {
-		This.p.hadMapping[EsIndexName] = true
+func (conn *ElasticsearchConn) doCreateMapping() {
+	EsIndexName := conn.p.EsIndexName
+	if conn.p.Mapping == "" {
+		conn.p.hadMapping[EsIndexName] = true
 		return
 	}
-	if _, ok := This.p.hadMapping[EsIndexName]; !ok {
-		resp, err := This.client.GetMapping().Index(EsIndexName).Do(context.Background())
+	if _, ok := conn.p.hadMapping[EsIndexName]; !ok {
+		resp, err := conn.client.GetMapping().Index(EsIndexName).Do(context.Background())
 
 		if err == nil && resp != nil {
 			if _, ok := resp[EsIndexName]; ok { // hadMapping
-				This.p.hadMapping[EsIndexName] = true
+				conn.p.hadMapping[EsIndexName] = true
 				return
 			}
 		}
 		var mapping map[string]interface{}
-		err = json.Unmarshal([]byte(This.p.Mapping), &mapping)
+		err = json.Unmarshal([]byte(conn.p.Mapping), &mapping)
 		if err == nil {
-			This.client.PutMapping().Index(EsIndexName).BodyJson(mapping).Do(context.Background())
+			conn.client.PutMapping().Index(EsIndexName).BodyJson(mapping).Do(context.Background())
 		} else {
-			log.Printf("output[elasticsearch] doCreateMapping json.Unmarshal err: %s , mapping:%s", err.Error(), mapping)
+			logrus.Printf("output[elasticsearch] doCreateMapping json.Unmarshal err: %s , mapping:%s", err.Error(), mapping)
 		}
-		This.p.hadMapping[EsIndexName] = true
+		conn.p.hadMapping[EsIndexName] = true
 	}
 }
 
-func (This *Conn) doCommit(list []*pluginDriver.PluginDataType, n int) (errData *pluginDriver.PluginDataType, err error) {
+func (conn *ElasticsearchConn) doCommit(list []*pluginDriver.PluginDataType, n int) (errData *pluginDriver.PluginDataType, err error) {
 
 	if len(list) > 0 {
-		This.p.EsIndexName = strings.ToLower(fmt.Sprint(pluginDriver.TransfeResult(This.p.EsIndexName, list[0], 0)))
+		conn.p.EsIndexName = strings.ToLower(fmt.Sprint(pluginDriver.TransfeResult(conn.p.EsIndexName, list[0], 0)))
 	}
 
 	//This.doCreateMapping()
-	errData, err = This.commitNormal(list, n)
+	errData, err = conn.commitNormal(list, n)
 	return
 }
 
-// 合并数据，提交到es里
-func (This *Conn) AutoCommit() (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
+func (conn *ElasticsearchConn) AutoCommit() (LastSuccessCommitData *pluginDriver.PluginDataType, ErrData *pluginDriver.PluginDataType, e error) {
 	defer func() {
 		if err := recover(); err != nil {
 			e = fmt.Errorf(string(debug.Stack()))
-			This.err = e
-			// log.Println(" This.conn.Err:", This.conn.Err)
+			conn.err = e
 		}
 	}()
-	if This.err != nil {
-		This.ReConnect()
+	if conn.err != nil {
+		conn.ReConnect()
 	}
-	if This.err != nil {
-		log.Println(" This.Err:", This.err)
-		return nil, nil, This.err
+	if conn.err != nil {
+		logrus.Println(" This.Err:", conn.err)
+		return nil, nil, conn.err
 	}
-	if This.err != nil {
-		log.Println("This.err:", This.err)
+	if conn.err != nil {
+		logrus.Println("This.err:", conn.err)
 	}
-	n := len(This.p.Data.Data)
+	n := len(conn.p.Data.Data)
 	if n == 0 {
 		return nil, nil, nil
 	}
 
-	if n > This.p.BatchSize {
-		n = This.p.BatchSize
+	if n > conn.p.BatchSize {
+		n = conn.p.BatchSize
 	}
-	list := This.p.Data.Data[:n]
+	list := conn.p.Data.Data[:n]
 
 	dataMap := make(map[string][]*pluginDriver.PluginDataType, 0)
 	var ok bool
@@ -331,120 +328,117 @@ func (This *Conn) AutoCommit() (LastSuccessCommitData *pluginDriver.PluginDataTy
 		dataMap[key] = append(dataMap[key], PluginData)
 	}
 	for _, dataList := range dataMap {
-		ErrData, e = This.doCommit(dataList, len(dataList))
+		ErrData, e = conn.doCommit(dataList, len(dataList))
 		// 假如数据不能丢，才需要 判断 是否有err，如果可以丢，直接错过数据
 		if e != nil {
-			This.err = e
-			if This.p.BifrostMustBeSuccess {
-				return nil, ErrData, This.err
+			conn.err = e
+			if conn.p.BifrostMustBeSuccess {
+				return nil, ErrData, conn.err
 			}
-			if This.CheckDataSkip(ErrData) {
+			if conn.CheckDataSkip(ErrData) {
 				continue
 			}
 		}
 	}
-	This.err = e
+	conn.err = e
 	var binlogEvent *pluginDriver.PluginDataType
-	if len(This.p.Data.Data) <= int(This.p.BatchSize) {
-		// log.Println("This.p.Data:", g.Export(This.p.Data))
-
-		binlogEvent = This.p.Data.CommitData[0]
-		//log.Println("binlogEvent:",*binlogEvent)
-		This.p.Data = NewTableData()
+	if len(conn.p.Data.Data) <= int(conn.p.BatchSize) {
+		binlogEvent = conn.p.Data.CommitData[0]
+		conn.p.Data = NewTableData()
 	} else {
-		This.p.Data.Data = This.p.Data.Data[n:]
-		if len(This.p.Data.CommitData) > 0 {
-			binlogEvent = This.p.Data.CommitData[0]
-			This.p.Data.CommitData = This.p.Data.CommitData[1:]
+		conn.p.Data.Data = conn.p.Data.Data[n:]
+		if len(conn.p.Data.CommitData) > 0 {
+			binlogEvent = conn.p.Data.CommitData[0]
+			conn.p.Data.CommitData = conn.p.Data.CommitData[1:]
 		}
 	}
-	This.p.SkipBinlogData = nil
+	conn.p.SkipBinlogData = nil
 	return binlogEvent, nil, nil
 }
 
 // 将数据放到 list 里,假如满足条件，则合并提交数据到es里
-func (This *Conn) sendToCacheList(data *pluginDriver.PluginDataType, retry bool) (
+func (conn *ElasticsearchConn) sendToCacheList(data *pluginDriver.PluginDataType, retry bool) (
 	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
 	var n int
 	if retry == false {
-		This.p.Data.Data = append(This.p.Data.Data, data)
+		conn.p.Data.Data = append(conn.p.Data.Data, data)
 	}
-	n = len(This.p.Data.Data)
+	n = len(conn.p.Data.Data)
 
-	if This.p.BatchSize <= n {
-		return This.AutoCommit()
+	if conn.p.BatchSize <= n {
+		return conn.AutoCommit()
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) Insert(data *pluginDriver.PluginDataType, retry bool) (
+func (conn *ElasticsearchConn) Insert(data *pluginDriver.PluginDataType, retry bool) (
 	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	This.initPrimaryKeys(data)
-	if len(This.p.primaryKeys) == 0 {
+	conn.initPrimaryKeys(data)
+	if len(conn.p.primaryKeys) == 0 {
 		return nil, data, fmt.Errorf("PrimaryKey is empty And Table No Pri!")
 	}
 
-	return This.sendToCacheList(data, retry)
+	return conn.sendToCacheList(data, retry)
 }
 
-func (This *Conn) Update(data *pluginDriver.PluginDataType, retry bool) (
+func (conn *ElasticsearchConn) Update(data *pluginDriver.PluginDataType, retry bool) (
 	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	This.initPrimaryKeys(data)
-	if len(This.p.primaryKeys) == 0 {
+	conn.initPrimaryKeys(data)
+	if len(conn.p.primaryKeys) == 0 {
 		return nil, data, fmt.Errorf("PrimaryKey is empty And Table No Pri!")
 	}
 
-	return This.sendToCacheList(data, retry)
+	return conn.sendToCacheList(data, retry)
 }
 
-func (This *Conn) Del(data *pluginDriver.PluginDataType, retry bool) (
+func (conn *ElasticsearchConn) Del(data *pluginDriver.PluginDataType, retry bool) (
 	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	This.initPrimaryKeys(data)
-	if len(This.p.primaryKeys) == 0 {
+	conn.initPrimaryKeys(data)
+	if len(conn.p.primaryKeys) == 0 {
 		return nil, data, fmt.Errorf("PrimaryKey is empty And Table No Pri!")
 	}
 
-	return This.sendToCacheList(data, retry)
+	return conn.sendToCacheList(data, retry)
 }
 
-func (This *Conn) Query(data *pluginDriver.PluginDataType, retry bool) (
+func (conn *ElasticsearchConn) Query(data *pluginDriver.PluginDataType, retry bool) (
 	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
 	return nil, nil, nil
 }
 
-func (This *Conn) Commit(data *pluginDriver.PluginDataType, retry bool) (
+func (conn *ElasticsearchConn) Commit(data *pluginDriver.PluginDataType, retry bool) (
 	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	n := len(This.p.Data.Data)
+	n := len(conn.p.Data.Data)
 	if n == 0 {
 		return data, nil, nil
 	}
 
-	n0 := n / This.p.BatchSize
-	if len(This.p.Data.CommitData)-1 < n0 {
-		This.p.Data.CommitData = append(This.p.Data.CommitData, data)
+	n0 := n / conn.p.BatchSize
+	if len(conn.p.Data.CommitData)-1 < n0 {
+		conn.p.Data.CommitData = append(conn.p.Data.CommitData, data)
 	} else {
-		This.p.Data.CommitData[n0] = data
+		conn.p.Data.CommitData[n0] = data
 	}
 	return nil, nil, nil
 }
 
-func (This *Conn) TimeOutCommit() (
+func (conn *ElasticsearchConn) TimeOutCommit() (
 	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
-	return This.AutoCommit()
+	return conn.AutoCommit()
 }
 
 // 设置跳过的位点
-func (This *Conn) Skip(SkipData *pluginDriver.PluginDataType) error {
-	This.p.SkipBinlogData = SkipData
+func (conn *ElasticsearchConn) Skip(SkipData *pluginDriver.PluginDataType) error {
+	conn.p.SkipBinlogData = SkipData
 	return nil
 }
 
-func (This *Conn) CheckDataSkip(data *pluginDriver.PluginDataType) bool {
-	if This.p.SkipBinlogData != nil && This.p.SkipBinlogData.BinlogFileNum == data.BinlogFileNum && This.p.SkipBinlogData.BinlogPosition == data.BinlogPosition {
-		if This.p.SkipBinlogData.BinlogFileNum == data.BinlogFileNum && This.p.SkipBinlogData.BinlogPosition >= data.BinlogPosition {
+func (conn *ElasticsearchConn) CheckDataSkip(data *pluginDriver.PluginDataType) bool {
+	if conn.p.SkipBinlogData != nil && conn.p.SkipBinlogData.BinlogFileNum == data.BinlogFileNum && conn.p.SkipBinlogData.BinlogPosition == data.BinlogPosition {
+		if conn.p.SkipBinlogData.BinlogFileNum == data.BinlogFileNum && conn.p.SkipBinlogData.BinlogPosition >= data.BinlogPosition {
 			return true
 		}
-		if This.p.SkipBinlogData.BinlogFileNum > data.BinlogFileNum {
+		if conn.p.SkipBinlogData.BinlogFileNum > data.BinlogFileNum {
 			return true
 		}
 	}
