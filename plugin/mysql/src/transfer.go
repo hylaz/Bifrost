@@ -15,22 +15,22 @@ import (
 func (conn *MysqlConn) GetToDestDataType(data *pluginDriver.PluginDataType, fieldName string, nullable bool) (dataType string) {
 	if data.ColumnMapping != nil {
 		if columnType, ok := data.ColumnMapping[fieldName]; ok {
-			return This.TransferToTypeByColumnType_Starrocks(columnType, nullable)
+			return conn.TransferToTypeByColumnType_Starrocks(columnType, nullable)
 		}
 	}
-	return This.TransferToCkTypeByColumnData(data.Rows[len(data.Rows)-1][fieldName], nullable)
+	return conn.TransferToCkTypeByColumnData(data.Rows[len(data.Rows)-1][fieldName], nullable)
 }
 
 func (conn *MysqlConn) TransferToCreateTableSql(data *pluginDriver.PluginDataType) (sql string, isContinue bool) {
-	if !This.IsStarRocks() {
+	if !conn.IsStarRocks() {
 		log.Printf("[ERROR] output[%s] only starrocks server support auto create table \n", OutputName)
 		return "", false
 	}
 	if data.Rows == nil || len(data.Rows) == 0 {
 		return "", true
 	}
-	if len(data.Pri) == 0 && This.p.SyncMode != SYNCMODE_LOG_APPEND {
-		log.Printf("[ERROR] output[%s] only SyncMode:%s support no pri,bug current SyncMode:%s SchemaName:%s TableName:%s \n", OutputName, SYNCMODE_LOG_APPEND, This.p.SyncMode, data.SchemaName, data.TableName)
+	if len(data.Pri) == 0 && conn.p.SyncMode != SYNCMODE_LOG_APPEND {
+		log.Printf("[ERROR] output[%s] only SyncMode:%s support no pri,bug current SyncMode:%s SchemaName:%s TableName:%s \n", OutputName, SYNCMODE_LOG_APPEND, conn.p.SyncMode, data.SchemaName, data.TableName)
 		return "", true
 	}
 	var fieldsStr string
@@ -44,7 +44,7 @@ func (conn *MysqlConn) TransferToCreateTableSql(data *pluginDriver.PluginDataTyp
 		}
 		return
 	}
-	if This.p.SyncMode == SYNCMODE_LOG_APPEND {
+	if conn.p.SyncMode == SYNCMODE_LOG_APPEND {
 		// starrocks append 模式是采用 binlog_datetime,binlog_event_type,$pks 作为进行排序,建表的时候,字段必须是在前面才能建成功,下同
 		addCkField("binlog_datetime", "{$BinlogDateTime}", "DATETIME DEFAULT NULL")
 		addCkField("binlog_event_type", "{$EventType}", "CHAR(6) DEFAULT NULL")
@@ -52,7 +52,7 @@ func (conn *MysqlConn) TransferToCreateTableSql(data *pluginDriver.PluginDataTyp
 	priMap := make(map[string]bool, 0)
 	for _, fileName0 := range data.Pri {
 		priMap[fileName0] = true
-		toDataType := This.GetToDestDataType(data, fileName0, false)
+		toDataType := conn.GetToDestDataType(data, fileName0, false)
 		addCkField(fileName0, fileName0, toDataType)
 	}
 
@@ -61,28 +61,28 @@ func (conn *MysqlConn) TransferToCreateTableSql(data *pluginDriver.PluginDataTyp
 		if _, ok = priMap[fileName0]; ok {
 			continue
 		}
-		toDataType := This.GetToDestDataType(data, fileName0, true)
+		toDataType := conn.GetToDestDataType(data, fileName0, true)
 		addCkField(fileName0, fileName0, toDataType)
 	}
-	if This.p.SyncMode != SYNCMODE_LOG_APPEND {
+	if conn.p.SyncMode != SYNCMODE_LOG_APPEND {
 		// starrocks 由于普通模式,是采用源端主键作为主键的,所以这些字段 放到表最后面就行
 		addCkField("binlog_datetime", "{$BinlogDateTime}", "DATETIME DEFAULT NULL")
 		addCkField("binlog_event_type", "{$EventType}", "CHAR(6) DEFAULT NULL")
 	}
-	engineSQL, err := This.GetCreateTableEngine(data)
+	engineSQL, err := conn.GetCreateTableEngine(data)
 	if err != nil {
 		log.Printf("[ERROR] output[%s] TransferToCreateTableSql err:%+v \n", OutputName, err)
 		return "", false
 	}
-	sql = fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s`.`%s` (%s) %s", This.GetSchemaName(data), This.GetTableName(data), fieldsStr, engineSQL)
+	sql = fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s`.`%s` (%s) %s", conn.GetSchemaName(data), conn.GetTableName(data), fieldsStr, engineSQL)
 	return
 }
 
 func (conn *MysqlConn) GetCreateTableEngine(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
-	if This.IsStarRocks() {
-		return This.GetCreateTableEngineByStarRocks(data)
+	if conn.IsStarRocks() {
+		return conn.GetCreateTableEngineByStarRocks(data)
 	}
-	return This.GetCreateTableEngineByMysql(data)
+	return conn.GetCreateTableEngineByMysql(data)
 }
 
 func (conn *MysqlConn) GetCreateTableEngineByMysql(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
@@ -92,12 +92,12 @@ func (conn *MysqlConn) GetCreateTableEngineByMysql(data *pluginDriver.PluginData
 
 func (conn *MysqlConn) GetCreateTableEngineByStarRocks(data *pluginDriver.PluginDataType) (engineSQL string, err error) {
 	engineSQL = " ENGINE=OLAP "
-	if This.p.SyncMode != SYNCMODE_LOG_APPEND && len(data.Pri) == 0 {
+	if conn.p.SyncMode != SYNCMODE_LOG_APPEND && len(data.Pri) == 0 {
 		err = errors.New("no pri ,not supported")
 		return
 	}
-	var ids = This.GetStarRocksIdsByPriList(data.Pri)
-	if This.p.SyncMode == SYNCMODE_LOG_APPEND {
+	var ids = conn.GetStarRocksIdsByPriList(data.Pri)
+	if conn.p.SyncMode == SYNCMODE_LOG_APPEND {
 		if ids != "" {
 			ids = "binlog_datetime,binlog_event_type," + ids
 		} else {
@@ -107,7 +107,7 @@ func (conn *MysqlConn) GetCreateTableEngineByStarRocks(data *pluginDriver.Plugin
 	} else {
 		engineSQL = fmt.Sprintf(" UNIQUE KEY(%s) DISTRIBUTED BY HASH(%s)", ids, ids)
 	}
-	if This.GetStarRocksBeCount() < 3 {
+	if conn.GetStarRocksBeCount() < 3 {
 		engineSQL += fmt.Sprintf(" PROPERTIES ('replication_num' = '%d' )", 1)
 	}
 	return
@@ -122,11 +122,11 @@ func (conn *MysqlConn) GetStarRocksIdsByPriList(pri []string) string {
 
 // 在自动建表的情况下,并且是追加模式的时候 ,需要自动添加一个自增ID的主键
 func (conn *MysqlConn) GetCreateAutoIncreFields() (ids []string) {
-	if !This.p.AutoTable {
+	if !conn.p.AutoTable {
 		return
 	}
 	// 必须是追加数据模式,才能自动添加一个自增ID主键
-	if This.p.SyncMode != SYNCMODE_LOG_APPEND {
+	if conn.p.SyncMode != SYNCMODE_LOG_APPEND {
 		return
 	}
 	return
@@ -134,8 +134,8 @@ func (conn *MysqlConn) GetCreateAutoIncreFields() (ids []string) {
 }
 
 func (conn *MysqlConn) TransferToTypeByColumnType(columnType string, nullable bool) (toType string) {
-	if This.IsStarRocks() {
-		return This.TransferToTypeByColumnType_Starrocks(columnType, nullable)
+	if conn.IsStarRocks() {
+		return conn.TransferToTypeByColumnType_Starrocks(columnType, nullable)
 	}
 	return "TEXT"
 }
@@ -221,7 +221,7 @@ func (conn *MysqlConn) TransferToTypeByColumnType_Starrocks(columnType string, n
 			break
 		}
 		if strings.Index(toLowerColumnType, "varchar") >= 0 {
-			toType = This.TransferDataType(toLowerColumnType, "varchar", "VARCHAR", 255)
+			toType = conn.TransferDataType(toLowerColumnType, "varchar", "VARCHAR", 255)
 			break
 		}
 		if strings.Index(toLowerColumnType, "char") >= 0 {
@@ -289,7 +289,7 @@ func (conn *MysqlConn) TransferToTypeByColumnType_Starrocks(columnType string, n
 }
 
 func (conn *MysqlConn) TransferDataType(columnType, dataType, destDataType string, defaultLen int) string {
-	dataTypeLen := This.GetDataTypeLength(columnType, dataType)
+	dataTypeLen := conn.GetDataTypeLength(columnType, dataType)
 	if dataTypeLen == 0 {
 		dataTypeLen = defaultLen
 	}
