@@ -1,10 +1,12 @@
 package src
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cast"
 	"net/http"
 
 	"github.com/olivere/elastic/v7"
@@ -12,7 +14,6 @@ import (
 	pluginDriver "github.com/brokercap/Bifrost/plugin/driver"
 )
 
-// commitNormal commitNormal
 func (conn *ElasticsearchConn) commitNormal(list []*pluginDriver.PluginDataType, n int) (errData *pluginDriver.PluginDataType, err error) {
 	reqs := make([]elastic.BulkableRequest, 0, len(list))
 	var normalFun = func(v *pluginDriver.PluginDataType, reqs1 []elastic.BulkableRequest) {
@@ -41,6 +42,7 @@ func (conn *ElasticsearchConn) commitNormal(list []*pluginDriver.PluginDataType,
 	for !conn.p.hadMapping[conn.p.EsIndexName] {
 		conn.doCreateMapping()
 	}
+
 	if err = conn.sendBulkRequests(reqs); err != nil {
 		logrus.Printf("do ES bulk err %v, close sync", err)
 		return
@@ -56,6 +58,7 @@ func (conn *ElasticsearchConn) makeInsertRequest(rows []map[string]interface{}) 
 		if err != nil {
 			return nil, err
 		}
+
 		req := elastic.NewBulkUpdateRequest().
 			Index(conn.p.EsIndexName).
 			RetryOnConflict(conn.esServerInfo.RetryCount).
@@ -108,7 +111,7 @@ func (conn *ElasticsearchConn) makeUpdateRequest(rows []map[string]interface{}) 
 func (conn *ElasticsearchConn) getDocID(row map[string]interface{}) (id string, err error) {
 	for _, key := range conn.p.primaryKeys {
 		if _, ok := row[key]; ok {
-			id = fmt.Sprint(row[key])
+			id = cast.ToString(row[key])
 		} else {
 			return "", fmt.Errorf("key:" + key + " no exsit")
 		}
@@ -126,7 +129,6 @@ func (conn *ElasticsearchConn) sendBulkRequests(reqs []elastic.BulkableRequest) 
 	if err != nil {
 		return err
 	}
-
 	for _, item := range bulkResponse.Items {
 		for action, result := range item {
 			if conn.isSuccessful(result, action) {
@@ -145,6 +147,20 @@ func (conn *ElasticsearchConn) sendBulkRequests(reqs []elastic.BulkableRequest) 
 		}
 	}
 	return nil
+}
+
+func (conn *ElasticsearchConn) sendBulkRequest(reqs []elastic.BulkableRequest) error {
+	var buf bytes.Buffer
+	res, err := conn.esClient.Bulk(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		return fmt.Errorf("bulk request error: %w", err)
+	}
+	defer res.Body.Close()
+	if res.IsError() {
+		return fmt.Errorf("bulk request error: %s", res.String())
+	}
+	return nil
+
 }
 
 func (conn *ElasticsearchConn) isSuccessful(result *elastic.BulkResponseItem, action string) bool {

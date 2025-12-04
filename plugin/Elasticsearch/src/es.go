@@ -43,13 +43,13 @@ type TableDataStruct struct {
 }
 
 type PluginParam struct {
-	EsIndexName          string          `json: "EsIndexName"`
-	PrimaryKey           string          `json: "PrimaryKey"`
-	Mapping              string          `json: "Mapping"`
-	primaryKeys          []string        `json: "primaryKeys"`
-	hadMapping           map[string]bool `json: "hadMapping"`
-	BifrostMustBeSuccess bool            `json: "BifrostMustBeSuccess"` // bifrost server 保留,数据是否能丢
-	BatchSize            int             `json: "BatchSize"`
+	EsIndexName          string          `json:"EsIndexName"`
+	PrimaryKey           string          `json:"PrimaryKey"`
+	Mapping              string          `json:"Mapping"`
+	primaryKeys          []string        `json:"primaryKeys"`
+	hadMapping           map[string]bool `json:"hadMapping"`
+	BifrostMustBeSuccess bool            `json:"BifrostMustBeSuccess"` // bifrost server 保留,数据是否能丢
+	BatchSize            int             `json:"BatchSize"`
 	Data                 *TableDataStruct
 	SkipBinlogData       *pluginDriver.PluginDataType // 在执行 skip 的时候 ，进行传入进来的时候需要要过滤的 位点，在每次commit之后，这个数据会被清空
 }
@@ -359,15 +359,12 @@ func (conn *ElasticsearchConn) AutoCommit() (LastSuccessCommitData *pluginDriver
 	return binlogEvent, nil, nil
 }
 
-// 将数据放到 list 里,假如满足条件，则合并提交数据到es里
-func (conn *ElasticsearchConn) sendToCacheList(data *pluginDriver.PluginDataType, retry bool) (
-	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+func (conn *ElasticsearchConn) sendToCacheList(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
 	var n int
-	if retry == false {
+	if !retry {
 		conn.p.Data.Data = append(conn.p.Data.Data, data)
 	}
 	n = len(conn.p.Data.Data)
-
 	if conn.p.BatchSize <= n {
 		return conn.AutoCommit()
 	}
@@ -392,8 +389,7 @@ func (conn *ElasticsearchConn) Update(data *pluginDriver.PluginDataType, retry b
 	return conn.sendToCacheList(data, retry)
 }
 
-func (conn *ElasticsearchConn) Del(data *pluginDriver.PluginDataType, retry bool) (
-	*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
+func (conn *ElasticsearchConn) Del(data *pluginDriver.PluginDataType, retry bool) (*pluginDriver.PluginDataType, *pluginDriver.PluginDataType, error) {
 	conn.initPrimaryKeys(data)
 	if len(conn.p.primaryKeys) == 0 {
 		return nil, data, fmt.Errorf("PrimaryKey is empty And Table No Pri!")
