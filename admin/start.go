@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"github.com/brokercap/Bifrost/admin/controller"
 	_ "github.com/brokercap/Bifrost/admin/router"
 	"github.com/brokercap/Bifrost/admin/xgo"
 	"github.com/brokercap/Bifrost/config"
@@ -16,13 +15,13 @@ func Start() {
 		}
 	}()
 	xgo.StartSession()
-	xgo.AddStaticRoute("/css/", controller.AdminTemplatePath("/public/"))
-	xgo.AddStaticRoute("/js/", controller.AdminTemplatePath("/public/"))
-	xgo.AddStaticRoute("/fonts/", controller.AdminTemplatePath("/public/"))
-	xgo.AddStaticRoute("/img/", controller.AdminTemplatePath("/public/"))
-	xgo.AddStaticRoute("/plugin/", config.BifrostPluginTemplateDir)
+	xgo.AddStaticRoute("/css/", "public")
+	xgo.AddStaticRoute("/js/", "public")
+	xgo.AddStaticRoute("/fonts/", "public")
+	xgo.AddStaticRoute("/img/", "public")
+	//xgo.AddStaticRoute("/plugin/", config.BifrostPluginTemplateDir)
 	var err error
-	if config.TLS {
+	if config.Tls {
 		err = xgo.StartTLS(config.Listen, config.TLSServerKeyFile, config.TLSServerCrtFile)
 	} else {
 		err = xgo.Start(config.Listen)

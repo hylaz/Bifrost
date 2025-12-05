@@ -5,15 +5,14 @@ var ChannelQueueSize int = 1000
 var CountQueueSize int = 3000
 var KeyCachePoolSize int = 50
 
-var TLS bool = false
+var Tls = false
 
 var TLSServerKeyFile string = ""
 var TLSServerCrtFile string = ""
 
 var DataDir = ""
 
-// 是否开启文件队列，false 的话将不会启动文件队列功能
-var FileQueueUsable bool = true
+var FileQueueUsable = true
 
 // 多少毫秒内有数据的情况下，写入 FileQueueUsableCount 次 内存队列后，队列都是满的状态 ，则启用 文件队列
 var FileQueueUsableCountTimeDiff int64 = 5000
@@ -34,15 +33,15 @@ var BifrostConfigFile string = ""
 
 var Listen string = "0.0.0.0:21036"
 
-var BifrostPidFile string = ""
+var BifrostPidFile = ""
 
-var BifrostLogDir string = ""
+var BifrostLogDir = ""
 
-var BifrostAdminTemplateDir string = ""
+var BifrostAdminTemplateDir = ""
 
-var BifrostPluginTemplateDir string = ""
+var BifrostPluginTemplateDir = ""
 
-var DynamicPlugin bool = false
+var DynamicPlugin = false
 
 // 每个IP连续登入失败多少次,则自动封IP,拒绝登入
 var RefuseIpLoginFailedCount int = 10

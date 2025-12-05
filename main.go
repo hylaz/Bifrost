@@ -241,7 +241,7 @@ func ListenSignal() {
 }
 func printLogo() {
 	var IpAndPort2 string
-	if config.TLS {
+	if config.Tls {
 		IpAndPort2 = "https://" + config.Listen
 	} else {
 		IpAndPort2 = "http://" + config.Listen

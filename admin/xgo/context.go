@@ -12,16 +12,13 @@ type Context struct {
 	Session        *SessionMgr
 }
 
-func (ctx *Context) GetParamInt64(key string, defaultVal ...int64) (int64, error) {
+func (ctx *Context) GetParamInt64(key string, defaultVal int64) (int64, error) {
 	val := ctx.Request.Form.Get(key)
-	int64, err := strconv.ParseInt(val, 10, 64)
-	if len(defaultVal) == 0 {
-		return int64, err
-	}
+	int64Key, err := strconv.ParseInt(val, 10, 64)
 	if err != nil {
-		return defaultVal[0], err
+		return defaultVal, nil
 	}
-	return int64, err
+	return int64Key, nil
 }
 
 func (ctx *Context) GetParamUInt64(key string, defaultVal ...uint64) (uint64, error) {

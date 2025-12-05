@@ -1,6 +1,6 @@
 package xgo
 
-var sessionMgr *SessionMgr = nil //session管理器
+var sessionMgr *SessionMgr
 
 func StartSession(cookieName ...string) {
 	if len(cookieName) == 0 {

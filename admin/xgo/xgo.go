@@ -1,7 +1,9 @@
 package xgo
 
 import (
+	"github.com/brokercap/Bifrost/admin/view"
 	"github.com/sirupsen/logrus"
+	"io/fs"
 	"net/http"
 	"reflect"
 	"runtime/debug"
@@ -49,7 +51,7 @@ func (route *routeController) CheckMethod(methodName string) bool {
 func (route *routeController) DoController(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		if err := recover(); err != nil {
-			if err == ErrAbort {
+			if err == AbortErr {
 				return
 			} else {
 				logrus.Println("xgo doController:", err, string(debug.Stack()))
@@ -128,7 +130,11 @@ func rounteFunc(w http.ResponseWriter, req *http.Request) {
 }
 
 func AddStaticRoute(route string, dir string) {
-	http.Handle(route, http.FileServer(http.Dir(dir)))
+	content, err := fs.Sub(view.EmbedPublic, dir)
+	if err != nil {
+		panic(err)
+	}
+	http.Handle(route, http.FileServer(http.FS(content)))
 }
 
 func Start(IpAndPort string) error {

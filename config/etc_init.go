@@ -188,7 +188,7 @@ func initTLSParam() {
 	var setTLSConfig = func() {
 		TLSServerKeyFile = path + "/" + tlsKeyFile
 		TLSServerCrtFile = path + "/" + tlsCrtFile
-		TLS = true
+		Tls = true
 	}
 
 	if GetConfigVal("Bifrostd", "tls") == "true" {

@@ -105,10 +105,15 @@ func (c *CommonController) SetTitle(title string) {
 
 func (c *CommonController) AddAdminTemplate(tpl ...string) {
 	for _, tplName := range tpl {
-		c.AddTemplate(AdminTemplatePath("/template/" + tplName))
+		c.AddTemplate("template/" + tplName)
 	}
 }
 
+func (c *CommonController) AddAdminTemplate02(tpl ...string) {
+	for _, tplName := range tpl {
+		c.AddTemplate(AdminTemplatePath("/template/" + tplName))
+	}
+}
 func (c *CommonController) AddPluginTemplate(tpl ...string) {
 	for _, tplName := range tpl {
 		c.AddTemplate(PluginTemplatePath("/plugin/" + tplName))
