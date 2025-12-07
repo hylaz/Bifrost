@@ -70,6 +70,7 @@ func (channel *Channel) Start() chan *outputDriver.PluginDataType {
 	if channel.Status == RUNNING {
 		return channel.chanName
 	}
+
 	channel.Status = RUNNING
 	for i := 0; i < channel.MaxThreadNum; i++ {
 		go channel.channelConsume()
@@ -77,28 +78,28 @@ func (channel *Channel) Start() chan *outputDriver.PluginDataType {
 	return channel.chanName
 }
 
-func (Channel *Channel) GetChannel() chan *outputDriver.PluginDataType {
-	return Channel.chanName
+func (channel *Channel) GetChannel() chan *outputDriver.PluginDataType {
+	return channel.chanName
 }
 
-func (Channel *Channel) Stop() {
-	Channel.Lock()
-	defer Channel.Unlock()
-	logrus.Println(Channel.db.Name, "Channel:", Channel.Name, "stop")
-	Channel.Status = STOPPED
-}
-
-func (Channel *Channel) Close() {
-	Channel.Lock()
-	defer Channel.Unlock()
-	logrus.Println(Channel.db.Name, "Channel:", Channel.Name, "close")
-	Channel.Status = CLOSED
-}
-
-func (channel *Channel) SetChannelMaxThreadNum(n int) {
+func (channel *Channel) Stop() {
 	channel.Lock()
 	defer channel.Unlock()
-	channel.MaxThreadNum = n
+	logrus.Println(channel.db.Name, "Channel:", channel.Name, "stop")
+	channel.Status = STOPPED
+}
+
+func (channel *Channel) Close() {
+	channel.Lock()
+	defer channel.Unlock()
+	logrus.Println(channel.db.Name, "Channel:", channel.Name, "close")
+	channel.Status = CLOSED
+}
+
+func (channel *Channel) SetChannelMaxThreadNum(num int) {
+	channel.Lock()
+	defer channel.Unlock()
+	channel.MaxThreadNum = num
 }
 
 func (channel *Channel) GetChannelMaxThreadNum() int {
@@ -109,15 +110,13 @@ func (channel *Channel) GetChannelMaxThreadNum() int {
 
 func (channel *Channel) channelConsume() {
 	channel.Lock()
+	defer channel.Unlock()
 	channel.CurrentThreadNum++
-	channel.Unlock()
 	defer func() {
 		if err := recover(); err != nil {
 			logrus.Println("channelConsume err:", err, string(debug.Stack()))
-			channel.Lock()
 			channel.CurrentThreadNum--
-			channel.Unlock()
 		}
 	}()
-	NewConsumeChannel(channel).consumeChannel()
+	newConsumeChannel(channel).consumeChannel()
 }
