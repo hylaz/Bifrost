@@ -38,20 +38,20 @@ type ToServerChan struct {
 type ConsumeChannel struct {
 	sync.RWMutex
 	db         *db
-	c          *Channel
-	SchemaName string
-	TableName  string
+	channel    *Channel
+	schemaName string
+	tableName  string
 }
 
-func NewConsumeChannel(c *Channel) *ConsumeChannel {
+func newConsumeChannel(channel *Channel) *ConsumeChannel {
 	return &ConsumeChannel{
-		db: c.db,
-		c:  c,
+		db:      channel.db,
+		channel: channel,
 	}
 }
 
 func (consume *ConsumeChannel) checkChannleStatus() {
-	if consume.c.Status == CLOSED {
+	if consume.channel.Status == CLOSED {
 		panic("channel closed")
 	}
 }
@@ -127,7 +127,7 @@ func (consume *ConsumeChannel) sendToServerResult(ToServerInfo *ToServer, plugin
 		case <-timer.C:
 			ToServerInfo.Lock()
 			defer ToServerInfo.Unlock()
-			ToServerInfo.InitFileQueue(consume.db.Name, consume.SchemaName, consume.TableName)
+			ToServerInfo.InitFileQueue(consume.db.Name, consume.schemaName, consume.tableName)
 			ToServerInfo.AppendToFileQueue(pluginData)
 			ToServerInfo.FileQueueStatus = true
 			//log.Println("start FileQueueStatus = true;",*pluginData)
@@ -164,12 +164,12 @@ func (consume *ConsumeChannel) transferToPluginData(data *mysql.EventReslut) (pl
 }
 
 func (consume *ConsumeChannel) consumeChannel() {
-	c := consume.c
+	channel := consume.channel
 	var pluginData *pluginDriver.PluginDataType
-	logrus.Println("channel", c.Name, " consume_channel start")
+	logrus.Println("channel", channel.Name, " consume_channel start")
 	timer := time.NewTimer(5 * time.Second)
 	defer func() {
-		logrus.Println("channel", c.Name, " consume_channel over; CurrentThreadNum:", c.CurrentThreadNum)
+		logrus.Println("channel", channel.Name, " consume_channel over; CurrentThreadNum:", channel.CurrentThreadNum)
 		timer.Stop()
 	}()
 	var key string
@@ -178,7 +178,7 @@ func (consume *ConsumeChannel) consumeChannel() {
 	var EventSize int64 = 0
 	for {
 		select {
-		case pluginData = <-consume.c.chanName:
+		case pluginData = <-consume.channel.chanName:
 			if consume.db.killStatus == 1 {
 				return
 			}
@@ -200,11 +200,11 @@ func (consume *ConsumeChannel) consumeChannel() {
 			key = GetSchemaAndTableJoin(pluginData.AliasSchemaName, pluginData.AliasTableName)
 			AllTableKey = GetSchemaAndTableJoin(pluginData.AliasSchemaName, "*")
 			//pluginData := This.transferToPluginData(&data)
-			consume.SchemaName, consume.TableName = pluginData.AliasSchemaName, pluginData.AliasTableName
+			consume.schemaName, consume.tableName = pluginData.AliasSchemaName, pluginData.AliasTableName
 			consume.sendToServerList(key, pluginData, countNum, EventSize)
-			consume.SchemaName, consume.TableName = pluginData.AliasSchemaName, "*"
+			consume.schemaName, consume.tableName = pluginData.AliasSchemaName, "*"
 			consume.sendToServerList(AllTableKey, pluginData, countNum, EventSize)
-			consume.SchemaName, consume.TableName = "*", "*"
+			consume.schemaName, consume.tableName = "*", "*"
 			consume.sendToServerList(AllSchemaAndTablekey, pluginData, countNum, EventSize)
 
 			if consume.db.killStatus == 1 {
@@ -216,14 +216,14 @@ func (consume *ConsumeChannel) consumeChannel() {
 			timer.Reset(5 * time.Second)
 		}
 		for {
-			if c.Status == STOPPED {
+			if channel.Status == STOPPED {
 				time.Sleep(1 * time.Second)
 			} else {
 				break
 			}
 		}
-		if c.CurrentThreadNum > c.MaxThreadNum || c.Status == CLOSED {
-			c.CurrentThreadNum--
+		if channel.CurrentThreadNum > channel.MaxThreadNum || channel.Status == CLOSED {
+			channel.CurrentThreadNum--
 			break
 		}
 	}
@@ -255,7 +255,7 @@ func (consume *ConsumeChannel) sendToServerList(key string, pluginData *pluginDr
 	if consume.checkIgnoreTable(t, pluginData.TableName) == false {
 		if len(t.ToServerList) > 0 {
 			consume.sendToServerList0(t.ToServerList, pluginData)
-			consume.c.countChan <- &count.FlowCount{
+			consume.channel.countChan <- &count.FlowCount{
 				Count:    countNum,
 				TableId:  t.key,
 				ByteSize: EventSize * int64(len(t.ToServerList)),
@@ -267,7 +267,7 @@ func (consume *ConsumeChannel) sendToServerList(key string, pluginData *pluginDr
 			continue
 		}
 		consume.sendToServerList0(t0.ToServerList, pluginData)
-		consume.c.countChan <- &count.FlowCount{
+		consume.channel.countChan <- &count.FlowCount{
 			Count:    countNum,
 			TableId:  t0.key,
 			ByteSize: EventSize * int64(len(t0.ToServerList)),
