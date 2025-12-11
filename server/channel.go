@@ -37,21 +37,21 @@ func GetChannel(name string, channelId int) *Channel {
 	}
 	DbList[name].Lock()
 	defer DbList[name].Unlock()
-	if _, ok := DbList[name].channelMap[channelId]; !ok {
+	if _, ok := DbList[name].ChannelMap[channelId]; !ok {
 		return nil
 	}
-	return DbList[name].channelMap[channelId]
+	return DbList[name].ChannelMap[channelId]
 }
 
 func DelChannel(name string, channelId int) bool {
 	if _, ok := DbList[name]; !ok {
 		return false
 	}
-	if _, ok := DbList[name].channelMap[channelId]; !ok {
+	if _, ok := DbList[name].ChannelMap[channelId]; !ok {
 		return false
 	}
-	logrus.Info(DbList[name].Name, "Channel:", DbList[name].channelMap[channelId].Name, "delete")
-	delete(DbList[name].channelMap, channelId)
+	logrus.Info(DbList[name].Name, "Channel:", DbList[name].ChannelMap[channelId].Name, "delete")
+	delete(DbList[name].ChannelMap, channelId)
 	return true
 }
 

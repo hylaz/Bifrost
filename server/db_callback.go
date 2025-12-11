@@ -88,10 +88,10 @@ func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {
 	var c *Channel
 	for {
 
-		if _, ok := db.channelMap[channelKey]; !ok {
+		if _, ok := db.ChannelMap[channelKey]; !ok {
 			return
 		}
-		c = db.channelMap[channelKey]
+		c = db.ChannelMap[channelKey]
 		c.RLock()
 		if c.Status == CLOSED {
 			c.RUnlock()
