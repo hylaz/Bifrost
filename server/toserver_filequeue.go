@@ -9,36 +9,37 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func GetFileQueue(dbName, SchemaName, tableName, ToServerID string) string {
-	return config.DataDir + "/filequeue/" + dbName + "/" + SchemaName + "/" + tableName + "/" + ToServerID
+func GetFileQueue(dbName, schemaName, tableName, toServerID string) string {
+	return config.DataDir + "/filequeue/" + dbName + "/" + schemaName + "/" + tableName + "/" + toServerID
 }
 
-// 初始化文件队列
-func (This *ToServer) InitFileQueue(dbName, SchemaName, tableName string) *ToServer {
-	if This.fileQueueObj == nil {
-		This.fileQueueObj = filequeue.NewQueue(GetFileQueue(dbName, SchemaName, tableName, fmt.Sprint(This.ToServerID)))
+// InitFileQueue 初始化文件队列
+func (server *ToServer) InitFileQueue(dbName, schemaName, tableName string) *ToServer {
+	if server.FileQueueObj == nil {
+		server.FileQueueObj = filequeue.NewQueue(GetFileQueue(dbName, schemaName, tableName, fmt.Sprint(server.ToServerID)))
 	}
-	return This
+	return server
 }
 
-// 将数据刷到磁盘队列中
-func (This *ToServer) AppendToFileQueue(data *pluginDriver.PluginDataType) error {
+// AppendToFileQueue 将数据刷到磁盘队列中
+func (server *ToServer) AppendToFileQueue(data *pluginDriver.PluginDataType) error {
 	v, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	return This.fileQueueObj.AppendBytes(v)
+	return server.FileQueueObj.AppendBytes(v)
 }
 
-// 从磁盘队列中取出最前面一条数据
-func (This *ToServer) PopFileQueue() (*pluginDriver.PluginDataType, error) {
-	v, err := This.fileQueueObj.Pop()
-	if err == nil && v == nil {
-		return nil, nil
-	}
+// PopFileQueue 从磁盘队列中取出最前面一条数据
+func (server *ToServer) PopFileQueue() (*pluginDriver.PluginDataType, error) {
+	v, err := server.FileQueueObj.Pop()
 	if err != nil {
 		return nil, err
 	}
+	if v == nil {
+		return nil, nil
+	}
+
 	var data pluginDriver.PluginDataType
 	err = json.Unmarshal(v, &data)
 	if err != nil {
@@ -48,15 +49,17 @@ func (This *ToServer) PopFileQueue() (*pluginDriver.PluginDataType, error) {
 	return &data, nil
 }
 
-// 从磁盘队列中取出最后面一条数据
-func (This *ToServer) ReadLastFromFileQueue() (*pluginDriver.PluginDataType, error) {
-	v, err := This.fileQueueObj.ReadLast()
-	if err == nil && v == nil {
-		return nil, nil
-	}
+// ReadLastFromFileQueue 从磁盘队列中取出最后面一条数据
+func (server *ToServer) ReadLastFromFileQueue() (*pluginDriver.PluginDataType, error) {
+	v, err := server.FileQueueObj.ReadLast()
 	if err != nil {
 		return nil, err
 	}
+
+	if v == nil {
+		return nil, nil
+	}
+
 	var data pluginDriver.PluginDataType
 	err = json.Unmarshal(v, &data)
 	if err != nil {
@@ -65,25 +68,25 @@ func (This *ToServer) ReadLastFromFileQueue() (*pluginDriver.PluginDataType, err
 	return &data, nil
 }
 
-// 文件队列启用
-func (This *ToServer) FileQueueStart() error {
-	This.Lock()
-	defer This.Unlock()
+// FileQueueStart 文件队列启用
+func (server *ToServer) FileQueueStart() error {
+	server.Lock()
+	defer server.Unlock()
 	if config.FileQueueUsable == true {
-		This.FileQueueStatus = true
+		server.FileQueueStatus = true
 	} else {
 		return fmt.Errorf("config.FileQueueUsable unable")
 	}
 	return nil
 }
 
-// 查看文件队列基本信息
-func (This *ToServer) GetFileQueueInfo() (info filequeue.QueueInfo, err error) {
-	This.Lock()
-	defer This.Unlock()
-	if This.FileQueueStatus == false || This.fileQueueObj == nil {
+// GetFileQueueInfo 查看文件队列基本信息
+func (server *ToServer) GetFileQueueInfo() (info filequeue.QueueInfo, err error) {
+	server.Lock()
+	defer server.Unlock()
+	if !server.FileQueueStatus || server.FileQueueObj == nil {
 		err = fmt.Errorf("filequeue not start")
 		return
 	}
-	return This.fileQueueObj.GetInfo(), nil
+	return server.FileQueueObj.GetInfo(), nil
 }

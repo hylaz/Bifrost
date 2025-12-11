@@ -45,7 +45,7 @@ type ConsumeChannel struct {
 
 func newConsumeChannel(channel *Channel) *ConsumeChannel {
 	return &ConsumeChannel{
-		db:      channel.db,
+		db:      channel.Db,
 		channel: channel,
 	}
 }
@@ -85,11 +85,11 @@ func (consume *ConsumeChannel) sendToServerResult(toServer *ToServer, pluginData
 		toServer.ToServerChan = &ToServerChan{
 			To: make(chan *pluginDriver.PluginDataType, config.ToServerQueueSize),
 		}
-		go toServer.consume_to_server(consume.db, pluginData.SchemaName, pluginData.TableName)
+		go toServer.consumeToServer(consume.db, pluginData.SchemaName, pluginData.TableName)
 	}
 	toServer.Unlock()
 	if toServer.LastBinlogKey == nil {
-		toServer.LastBinlogKey = getToServerLastBinlogkey(consume.db, toServer)
+		toServer.LastBinlogKey = getToServerLastBinlogKey(consume.db, toServer)
 	}
 	saveBinlogPositionByCache(toServer.LastBinlogKey, lastQueueBinlog)
 	if FileQueueStatus {
@@ -180,7 +180,7 @@ func (consume *ConsumeChannel) consumeChannel() {
 	for {
 		select {
 
-		case pluginData = <-consume.channel.chanName:
+		case pluginData = <-consume.channel.ChanName:
 			if consume.db.killStatus == 1 {
 				return
 			}
@@ -237,17 +237,17 @@ func (consume *ConsumeChannel) consumeChannel() {
 	}
 }
 
-func (consume *ConsumeChannel) checkIgnoreTable(table *Table, TableName string) bool {
+func (consume *ConsumeChannel) checkIgnoreTable(table *Table, tableName string) bool {
 	consume.db.RLock()
 	defer consume.db.RUnlock()
 
-	if len(table.doTableMap) > 0 {
-		if _, ok := table.doTableMap[TableName]; ok {
+	if len(table.DoTableMap) > 0 {
+		if _, ok := table.DoTableMap[tableName]; ok {
 			return false
 		}
 		return true
 	}
-	if _, ok := table.ignoreTableMap[TableName]; ok {
+	if _, ok := table.IgnoreTableMap[tableName]; ok {
 		return true
 	}
 	return false
@@ -262,22 +262,22 @@ func (consume *ConsumeChannel) sendToServerList(key string, pluginData *pluginDr
 	if consume.checkIgnoreTable(table, pluginData.TableName) == false {
 		if len(table.ToServerList) > 0 {
 			consume.toServerList(table.ToServerList, pluginData)
-			consume.channel.countChan <- &count.FlowCount{
+			consume.channel.CountChan <- &count.FlowCount{
 				Count:    countNum,
-				TableId:  table.key,
+				TableId:  table.Key,
 				ByteSize: eventSize * int64(len(table.ToServerList)),
 			}
 		}
 	}
 
-	for _, joinTable := range table.likeTableList {
+	for _, joinTable := range table.LikeTableList {
 		if consume.checkIgnoreTable(joinTable, pluginData.TableName) == true {
 			continue
 		}
 		consume.toServerList(joinTable.ToServerList, pluginData)
-		consume.channel.countChan <- &count.FlowCount{
+		consume.channel.CountChan <- &count.FlowCount{
 			Count:    countNum,
-			TableId:  joinTable.key,
+			TableId:  joinTable.Key,
 			ByteSize: eventSize * int64(len(joinTable.ToServerList)),
 		}
 	}

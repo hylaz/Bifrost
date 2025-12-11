@@ -15,7 +15,7 @@ func (db *db) Callback(data *outputDriver.PluginDataType) {
 			db.CallbackDoCommit(data)
 			return
 		case "BEGIN":
-			db.lastTransactionTableMap = make(map[string]map[string]bool, 4)
+			db.LastTransactionTableMap = make(map[string]map[string]bool, 4)
 			return
 		default:
 			break
@@ -31,14 +31,14 @@ func (db *db) Callback(data *outputDriver.PluginDataType) {
 		return
 	}
 
-	if _, ok := db.lastTransactionTableMap[data.SchemaName]; !ok {
-		db.lastTransactionTableMap[data.SchemaName] = make(map[string]bool)
+	if _, ok := db.LastTransactionTableMap[data.SchemaName]; !ok {
+		db.LastTransactionTableMap[data.SchemaName] = make(map[string]bool)
 	}
-	db.lastTransactionTableMap[data.SchemaName][data.TableName] = true
+	db.LastTransactionTableMap[data.SchemaName][data.TableName] = true
 }
 
 func (db *db) CallbackDoCommit(data *outputDriver.PluginDataType) {
-	for SchemaName, TableNameMap := range db.lastTransactionTableMap {
+	for SchemaName, TableNameMap := range db.LastTransactionTableMap {
 		for TableName, _ := range TableNameMap {
 			data0 := &outputDriver.PluginDataType{
 				Timestamp:       data.Timestamp,
@@ -59,7 +59,7 @@ func (db *db) CallbackDoCommit(data *outputDriver.PluginDataType) {
 			db.Callback0(data0)
 		}
 	}
-	db.lastTransactionTableMap = make(map[string]map[string]bool, 0)
+	db.LastTransactionTableMap = make(map[string]map[string]bool, 0)
 }
 
 func (db *db) Callback0(data *outputDriver.PluginDataType) (b bool) {

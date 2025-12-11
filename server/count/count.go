@@ -167,7 +167,7 @@ func DelChannel(db string, channelId string) {
 	return
 }
 
-func SetTable(db string, tableId string) {
+func SetTable(db, tableId string) {
 	if _, ok := dbCountChanMap[db]; !ok {
 		return
 	}

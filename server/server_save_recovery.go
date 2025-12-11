@@ -165,3 +165,7 @@ func GetServerStartTimeByConfigFile() time.Time {
 	}
 	return fInfo.ModTime()
 }
+
+func GetServerStartTime() time.Time {
+	return serverStartTime
+}

@@ -5,9 +5,9 @@ go 1.25.1
 require (
 	github.com/ClickHouse/clickhouse-go v1.5.4
 	github.com/IBM/sarama v1.46.3
-	github.com/agiledragon/gomonkey/v2 v2.13.0
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/dgraph-io/badger/v4 v4.8.0
+	github.com/elastic/go-elasticsearch/v9 v9.2.0
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/hprose/hprose-golang v2.0.6+incompatible
 	github.com/olivere/elastic/v7 v7.0.32
@@ -44,7 +44,6 @@ require (
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.8.0 // indirect
-	github.com/elastic/go-elasticsearch/v9 v9.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/getsentry/sentry-go v0.40.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect

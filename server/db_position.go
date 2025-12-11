@@ -8,7 +8,7 @@ import (
 )
 
 func (db *db) CronCalcMinPosition() (p *inputDriver.PluginPosition) {
-	if !db.inputDriverObj.IsSupported(inputDriver.SupportNeedMinPosition) {
+	if !db.InputDriverObj.IsSupported(inputDriver.SupportNeedMinPosition) {
 		return
 	}
 	logrus.Println(db.Name, " CronCalcMinPosition start")
@@ -26,12 +26,12 @@ func (db *db) CronCalcMinPosition() (p *inputDriver.PluginPosition) {
 			func() {
 				db.RLock()
 				defer db.RUnlock()
-				if db.inputDriverObj != nil {
-					db.inputDriverObj.DoneMinPosition(p)
+				if db.InputDriverObj != nil {
+					db.InputDriverObj.DoneMinPosition(p)
 				}
 			}()
 			timer.Reset(timeDuration)
-		case <-db.statusCtx.ctx.Done():
+		case <-db.StatusCtx.ctx.Done():
 			return
 		}
 	}
@@ -40,7 +40,7 @@ func (db *db) CronCalcMinPosition() (p *inputDriver.PluginPosition) {
 
 func (db *db) CalcMinPosition() (p *inputDriver.PluginPosition) {
 	db.RLock()
-	tableMap := db.tableMap
+	tableMap := db.TableMap
 	if len(tableMap) == 0 {
 		return
 	}

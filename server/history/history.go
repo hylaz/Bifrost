@@ -63,7 +63,7 @@ func (history *History) InitToServer() {
 		for _, ID := range history.ToServerIDList {
 			if ID == toServerInfo.ToServerID {
 				toServerInfoNew := &server.ToServer{
-					Key:                &Key,
+					Key:                Key,
 					ToServerID:         0,
 					PluginName:         toServerInfo.PluginName,
 					MustBeSuccess:      toServerInfo.MustBeSuccess,

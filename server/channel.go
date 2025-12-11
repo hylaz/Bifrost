@@ -12,87 +12,87 @@ import (
 type Channel struct {
 	sync.RWMutex
 	Name             string
-	chanName         chan *outputDriver.PluginDataType
+	ChanName         chan *outputDriver.PluginDataType
 	MaxThreadNum     int
 	CurrentThreadNum int
 	Status           StatusFlag
-	db               *db
-	countChan        chan *count.FlowCount
+	Db               *db
+	CountChan        chan *count.FlowCount
 }
 
-func NewChannel(MaxThreadNum int, Name string, db *db) *Channel {
+func NewChannel(maxThreadNum int, name string, db *db) *Channel {
 	return &Channel{
-		Name:             Name,
-		chanName:         make(chan *outputDriver.PluginDataType, MaxThreadNum*config.ChannelQueueSize),
-		MaxThreadNum:     MaxThreadNum,
+		Name:             name,
+		ChanName:         make(chan *outputDriver.PluginDataType, maxThreadNum*config.ChannelQueueSize),
+		MaxThreadNum:     maxThreadNum,
 		CurrentThreadNum: 0,
 		Status:           STOPPED,
-		db:               db,
+		Db:               db,
 	}
 }
 
-func GetChannel(name string, channelID int) *Channel {
+func GetChannel(name string, channelId int) *Channel {
 	if _, ok := DbList[name]; !ok {
 		return nil
 	}
 	DbList[name].Lock()
 	defer DbList[name].Unlock()
-	if _, ok := DbList[name].channelMap[channelID]; !ok {
+	if _, ok := DbList[name].channelMap[channelId]; !ok {
 		return nil
 	}
-	return DbList[name].channelMap[channelID]
+	return DbList[name].channelMap[channelId]
 }
 
-func DelChannel(name string, channelID int) bool {
+func DelChannel(name string, channelId int) bool {
 	if _, ok := DbList[name]; !ok {
 		return false
 	}
-	if _, ok := DbList[name].channelMap[channelID]; !ok {
+	if _, ok := DbList[name].channelMap[channelId]; !ok {
 		return false
 	}
-	logrus.Println(DbList[name].Name, "Channel:", DbList[name].channelMap[channelID].Name, "delete")
-	delete(DbList[name].channelMap, channelID)
+	logrus.Info(DbList[name].Name, "Channel:", DbList[name].channelMap[channelId].Name, "delete")
+	delete(DbList[name].channelMap, channelId)
 	return true
 }
 
 func (channel *Channel) SetFlowCountChan(flowChan chan *count.FlowCount) {
-	channel.countChan = flowChan
+	channel.CountChan = flowChan
 }
 
 func (channel *Channel) GetCountChan() chan *count.FlowCount {
-	return channel.countChan
+	return channel.CountChan
 }
 
 func (channel *Channel) Start() chan *outputDriver.PluginDataType {
 	channel.Lock()
 	defer channel.Unlock()
-	logrus.Println(channel.db.Name, "Channel:", channel.Name, "start")
+	logrus.Info(channel.Db.Name, "Channel:", channel.Name, "start")
 	if channel.Status == RUNNING {
-		return channel.chanName
+		return channel.ChanName
 	}
 
 	channel.Status = RUNNING
 	for i := 0; i < channel.MaxThreadNum; i++ {
 		go channel.channelConsume()
 	}
-	return channel.chanName
+	return channel.ChanName
 }
 
 func (channel *Channel) GetChannel() chan *outputDriver.PluginDataType {
-	return channel.chanName
+	return channel.ChanName
 }
 
 func (channel *Channel) Stop() {
 	channel.Lock()
 	defer channel.Unlock()
-	logrus.Println(channel.db.Name, "Channel:", channel.Name, "stop")
+	logrus.Info(channel.Db.Name, "Channel:", channel.Name, "stop")
 	channel.Status = STOPPED
 }
 
 func (channel *Channel) Close() {
 	channel.Lock()
 	defer channel.Unlock()
-	logrus.Println(channel.db.Name, "Channel:", channel.Name, "close")
+	logrus.Info(channel.Db.Name, "Channel:", channel.Name, "close")
 	channel.Status = CLOSED
 }
 
@@ -114,7 +114,7 @@ func (channel *Channel) channelConsume() {
 	channel.CurrentThreadNum++
 	defer func() {
 		if err := recover(); err != nil {
-			logrus.Println("channelConsume err:", err, string(debug.Stack()))
+			logrus.Info("channelConsume err:", err, string(debug.Stack()))
 			channel.CurrentThreadNum--
 		}
 	}()

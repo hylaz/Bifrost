@@ -31,6 +31,7 @@ var cachePoolCount uint32 = 0
 
 func init() {
 	toSaveDbConfigChan = make(chan int8, 100)
+
 	go func() {
 		timer := time.NewTimer(5 * time.Minute)
 		for {
@@ -79,21 +80,21 @@ func saveBinlogPositionToStorageFromCache() {
 	}
 }
 
-var crc_table *crc32.Table = crc32.MakeTable(0xD5828281)
+var crcTable = crc32.MakeTable(0xD5828281)
 
 func saveBinlogPositionByCache(key []byte, t *PositionStruct) {
 	if cachePoolCount <= 0 {
 		saveBinlogPosition(key, t)
 		return
 	}
-	id := crc32.Checksum(key, crc_table) % cachePoolCount
+	id := crc32.Checksum(key, crcTable) % cachePoolCount
 	TmpPositioin[id].Lock()
 	TmpPositioin[id].Data[string(key)] = t
 	TmpPositioin[id].Unlock()
 }
 
 func getBinlogPositionByCache(key []byte) (*PositionStruct, error) {
-	id := crc32.Checksum(key, crc_table) % cachePoolCount
+	id := crc32.Checksum(key, crcTable) % cachePoolCount
 	TmpPositioin[id].RLock()
 	defer TmpPositioin[id].RUnlock()
 	if _, ok := TmpPositioin[id].Data[string(key)]; ok {
@@ -109,42 +110,45 @@ func SaveDBConfigInfo() {
 	}
 }
 
-func getToServerLastBinlogkey(db *db, toserver *ToServer) []byte {
+func getToServerLastBinlogKey(db *db, toserver *ToServer) []byte {
 	return []byte("last-binlog-toserver-" + db.Name + "-" + strconv.FormatInt(db.AddTime, 10) + "-" + toserver.ToServerKey + "-" + strconv.Itoa(toserver.ToServerID))
 }
 
-func getToServerBinlogkey(db *db, toserver *ToServer) []byte {
+func getToServerBinlogKey(db *db, toserver *ToServer) []byte {
 	return []byte("binlog-toserver-" + db.Name + "-" + strconv.FormatInt(db.AddTime, 10) + "-" + toserver.ToServerKey + "-" + strconv.Itoa(toserver.ToServerID))
 }
 
-func getDBBinlogkey(db *db) []byte {
+func getBinlogKey(db *db) []byte {
 	return []byte("binlog-db-" + db.Name + "-" + strconv.FormatInt(db.AddTime, 10))
 }
 
 func saveBinlogPosition(key []byte, t *PositionStruct) error {
-	Val, _ := json.Marshal(t)
-	err := storage.PutKeyVal(key, Val)
+	val, _ := json.Marshal(t)
+	err := storage.PutKeyVal(key, val)
 	return err
 }
 
 func getBinlogPosition(key []byte) (*PositionStruct, error) {
 	if cachePoolCount > 0 {
-		data0, err := getBinlogPositionByCache(key)
+		data, err := getBinlogPositionByCache(key)
 		if err == nil {
-			return data0, nil
+			return data, nil
 		}
 	}
+
 	s, err := storage.GetKeyVal(key)
 	if err != nil {
 		return nil, err
 	}
+
 	if len(s) == 0 {
 		return nil, fmt.Errorf("not found data")
 	}
+
 	var data PositionStruct
-	err2 := json.Unmarshal(s, &data)
-	if err2 != nil {
-		return nil, err2
+	err = json.Unmarshal(s, &data)
+	if err != nil {
+		return nil, err
 	}
 	return &data, nil
 }

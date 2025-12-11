@@ -105,7 +105,7 @@ func (c *DBController) Add() {
 		MaxFileName:    data.MaxBinlogFileName,
 		MaxPosition:    data.MaxBinlogPosition,
 	}
-	server.AddNewDB(data.DbName, data.InputType, inputInfo, time.Now().Unix())
+	server.AddNewDb(data.DbName, data.InputType, inputInfo, time.Now().Unix())
 	channel, _ := server.GetDBObj(data.DbName).AddChannel("default", 1)
 	if channel != nil {
 		channel.Start()
@@ -142,7 +142,7 @@ func (c *DBController) Update() {
 		MaxFileName:    data.MaxBinlogFileName,
 		MaxPosition:    data.MaxBinlogPosition,
 	}
-	err := server.UpdateDB(data.DbName, data.InputType, inputInfo, time.Now().Unix(), data.UpdateToServer)
+	err := server.UpdateDb(data.DbName, data.InputType, inputInfo, time.Now().Unix(), data.UpdateToServer)
 	if err != nil {
 		result.Msg = err.Error()
 	} else {
@@ -165,7 +165,7 @@ func (c *DBController) Delete() {
 		return
 	}
 	defer server.SaveDBConfigInfo()
-	r := server.DelDB(data.DbName)
+	r := server.DelDb(data.DbName)
 	if r == true {
 		result.Status = 1
 		result.Msg = "success"
@@ -188,7 +188,7 @@ func (c *DBController) Stop() {
 		return
 	}
 	defer server.SaveDBConfigInfo()
-	server.GetDB(data.DbName).Stop()
+	server.GetDb(data.DbName).Stop()
 	result = ResultDataStruct{Status: 1, Msg: "success", Data: nil}
 	return
 }
@@ -206,7 +206,7 @@ func (c *DBController) Start() {
 		return
 	}
 	defer server.SaveDBConfigInfo()
-	err := server.GetDB(data.DbName).Start()
+	err := server.GetDb(data.DbName).Start()
 	if err != nil {
 		result.Msg = err.Error()
 		return
@@ -228,7 +228,7 @@ func (c *DBController) Close() {
 		return
 	}
 	defer server.SaveDBConfigInfo()
-	server.GetDB(data.DbName).Close()
+	server.GetDb(data.DbName).Close()
 	result = ResultDataStruct{Status: 1, Msg: "success", Data: nil}
 	return
 }
@@ -303,7 +303,7 @@ func (c *DBController) GetLastPosition() {
 	dbInfo.BinlogPosition = int(dbObj.BinlogDumpPosition)
 	dbInfo.BinlogTimestamp = dbObj.BinlogDumpTimestamp
 	dbInfo.Gtid = dbObj.Gtid
-	CurrentPositionInfo, err := server.GetDB(data.DbName).GetCurrentPosition()
+	CurrentPositionInfo, err := server.GetDb(data.DbName).GetCurrentPosition()
 	if err != nil {
 		result.Msg = err.Error()
 		return
